@@ -1,0 +1,10 @@
+[project]
+name = "camgame"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "mediapipe>=1.0.1",
+    "numpy>=2.5.2",
+    "opencv-python>=5.0.0.93",
+    "pygame-ce>=2.5.8",
+]

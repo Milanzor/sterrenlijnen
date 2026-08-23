@@ -5,17 +5,24 @@
 // Loop je te ver voor, dan "wacht" jouw volgende stipje tot je andere hand
 // heeft bijgehaald — zo ontstaat vanzelf het samen-bewegen.
 //
-// Twee modi: de Level modus (100 figuren) en de Letter leer modus (a t/m z).
-// Letterfiguren bestaan uit halen (strokes) die ná elkaar getrokken worden,
-// in de echte schrijfvolgorde, tussen schrijflijnen.
+// Drie modi: de Level modus (100 figuren), de Letter leer modus (a t/m z) en
+// de Woorden modus (korte leeswoorden). Letters en woorden bestaan uit halen
+// (strokes) die ná elkaar getrokken worden, in de echte schrijfvolgorde,
+// tussen schrijflijnen.
 
 import { LEVELS, fitPaths } from "./figures.js";
 import { LETTERS } from "./letters.js";
+import { WOORDEN } from "./words.js";
 import { KLEUREN, SPEELKLEUREN, KIDSFONT, tekenSter, tekstSprite } from "./fx.js";
 
 const AHEAD = 2;      // stipjes vooruit mogen (tegen wild zwaaien)
 const LEAD_MAX = 2;   // duo: zoveel stipjes mag de ene lijn voorlopen
 const OPSLAG = "sterrenlijnen";
+const MODI = {
+  level:  { lijst: LEVELS,  opslag: OPSLAG,              soort: "Level",  meervoud: "levels" },
+  letter: { lijst: LETTERS, opslag: `${OPSLAG}-letters`, soort: "Letter", meervoud: "letters" },
+  woord:  { lijst: WOORDEN, opslag: `${OPSLAG}-woorden`, soort: "Woord",  meervoud: "woorden" },
+};
 
 function laadVoortgang(sleutel, maxLevel) {
   try {
@@ -33,8 +40,8 @@ export class SpoorSpel {
     this.fx = fx;
     this.geluid = geluid;
     this.modus = modus;
-    this.levels = modus === "letter" ? LETTERS : LEVELS;
-    this.opslag = modus === "letter" ? `${OPSLAG}-letters` : OPSLAG;
+    this.levels = MODI[modus].lijst;
+    this.opslag = MODI[modus].opslag;
     const opgeslagen = laadVoortgang(this.opslag, this.levels.length);
     this.levelIdx = startLevel ?? opgeslagen.level;  // 0-based; 100 = alles af
     this.sterren = startLevel === null ? opgeslagen.sterren : 0;
@@ -55,8 +62,7 @@ export class SpoorSpel {
 
   get levelLabel() {
     const n = this.levels.length;
-    const soort = this.modus === "letter" ? "Letter" : "Level";
-    return this.levelIdx < n ? `${soort} ${this.levelIdx + 1}/${n}`
+    return this.levelIdx < n ? `${MODI[this.modus].soort} ${this.levelIdx + 1}/${n}`
                              : `${n} ✓ · vrij spelen`;
   }
 
@@ -81,17 +87,30 @@ export class SpoorSpel {
       }
     }
     this.figuur = spec;
-    const spacing = this.H * (spec.letter ? 0.07 : 0.082);
-    const { paden: fitted, naarY, k } = fitPaths(spec.paths, this.W, this.H, spacing, spec.kader);
-    if (spec.letter) {  // schrijflijnen: bovenlijn, x-hoogte, grondlijn
-      this.schrijflijnen = { x0: this.W / 2 - k * 0.52, x1: this.W / 2 + k * 0.52,
-                             top: naarY(0.1), xh: naarY(0.5), grond: naarY(1.0), k };
-      if (!zelfde) this.geluid.zeg(`de letter ${spec.letter}`);
+    const spacing = this.H * (spec.kader ? 0.07 : 0.082);
+    const { paden: fitted, naarX, naarY, k } = fitPaths(spec.paths, this.W, this.H, spacing, spec.kader);
+    if (spec.kader) {  // schrijflijnen: bovenlijn, x-hoogte, grondlijn
+      let minX = Infinity, maxX = -Infinity;
+      for (const p of spec.paths) for (const [x] of p) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+      }
+      // de regel is minstens zo breed als bij een losse letter, en groeit
+      // mee met een heel woord
+      this.schrijflijnen = {
+        x0: Math.min(naarX(minX) - k * 0.14, this.W / 2 - k * 0.52),
+        x1: Math.max(naarX(maxX) + k * 0.14, this.W / 2 + k * 0.52),
+        top: naarY(0.1), xh: naarY(0.5), grond: naarY(1.0), k,
+      };
     }
+    if (spec.zegNieuw && !zelfde) this.geluid.zeg(spec.zegNieuw);
     let kleuren;
     if (spec.duo) {
       const i = (Math.random() * SPEELKLEUREN.length) | 0;
       kleuren = [SPEELKLEUREN[i], SPEELKLEUREN[(i + 2) % SPEELKLEUREN.length]];
+    } else if (spec.groepen) {  // woorden: elke letter zijn eigen kleur
+      const basis = (Math.random() * SPEELKLEUREN.length) | 0;
+      kleuren = spec.groepen.map(g => SPEELKLEUREN[(basis + g) % SPEELKLEUREN.length]);
     } else {  // strokes-figuren: alle halen in dezelfde kleur — het is één letter
       kleuren = [SPEELKLEUREN[(Math.random() * SPEELKLEUREN.length) | 0]];
     }
@@ -214,7 +233,7 @@ export class SpoorSpel {
     }
     const winst = duo ? 5 : 3;  // duo = 2×2 vliegers + bonusster
     if (duo) this.fx.vlieger(this.W / 2, this.H * 0.4, ...this.hudSterPos);
-    if (this.figuur.letter) this.geluid.zeg(this.figuur.letter);  // "a!"
+    if (this.figuur.zegKlaar) this.geluid.zeg(this.figuur.zegKlaar);  // "a!" / "kat!"
     this.sterren += winst;
     this.doneT = 1.9;
     this.sweepT = 0;
@@ -244,8 +263,8 @@ export class SpoorSpel {
 
   teken(ctx, nu) {
     const duo = this.figuur.duo;
-    const letter = this.figuur.letter;
-    if (letter) this._tekenSchrijfregel(ctx);
+    const schrijf = !!this.figuur.kader;
+    if (schrijf) this._tekenSchrijfregel(ctx);
     const actief = this.figuur.strokes ? this.actieveHaal : -1;
     for (const [i, pad] of this.paden.entries()) {
       this._tekenPad(ctx, pad, i, nu, actief);
@@ -253,15 +272,17 @@ export class SpoorSpel {
     // figuurnaam bovenin (bounce'je zolang het figuur net af is), uit de cache
     const naam = this.figuur.name + (duo ? "  ✦ twee handen!" : "");
     const spr = tekstSprite(naam, Math.round(this.H * 0.055), this.paden[0].kleur,
-                            letter ? { font: KIDSFONT } : {});
+                            schrijf ? { font: KIDSFONT } : {});
     const schaal = this.doneT > 0 ? 1 + Math.sin(Math.min(1, this.sweepT / 0.3) * Math.PI) * 0.18 : 1;
     ctx.drawImage(spr, this.W / 2 - spr.width * schaal / 2,
                   this.H * 0.15 - spr.height * schaal / 2,
                   spr.width * schaal, spr.height * schaal);
 
-    // voorbeeldletter naast de schrijfregel, in het kinderfont (Kermit)
-    if (letter) {
-      const vb = tekstSprite(letter, Math.round(this.H * 0.26), this.paden[0].kleur,
+    // voorbeeld naast de schrijfregel, in het kinderfont (Kermit):
+    // de losse letter groot, een heel woord wat kleiner
+    if (this.figuur.toon) {
+      const px = Math.round(this.H * (this.figuur.toon.length > 1 ? 0.13 : 0.26));
+      const vb = tekstSprite(this.figuur.toon, px, this.paden[0].kleur,
                              { font: KIDSFONT, gewicht: 700 });
       const vx = this.schrijflijnen.x0 - this.schrijflijnen.k * 0.42;
       if (vx - vb.width / 2 > 8) {
@@ -356,7 +377,11 @@ export class SpoorSpel {
     ctx.globalAlpha = 1;
     // strokes-figuren met meer halen: cijfertje bij het begin van elke haal,
     // zodat de schrijfvolgorde te zien is zoals in een schrijfschrift
-    if (strokes && this.paden.length > 1) {
+    // (bij woorden telt de nummering per letter; halen van éénhaals-letters
+    // krijgen geen cijfertje)
+    const nr = this.figuur.badges ? this.figuur.badges[padIdx]
+             : strokes && this.paden.length > 1 ? padIdx + 1 : null;
+    if (strokes && nr != null) {
       const [bx, by] = dots[0];
       const af = progress >= dots.length;
       const aanBeurt = padIdx === actief;
@@ -366,7 +391,7 @@ export class SpoorSpel {
       ctx.beginPath();
       ctx.arc(bx - 24, by - 24, 14, 0, Math.PI * 2);
       ctx.fill();
-      const spr = tekstSprite(String(padIdx + 1), 20,
+      const spr = tekstSprite(String(nr), 20,
                               af ? "#8b90b8" : aanBeurt ? "#1a1530" : "#fff",
                               { gewicht: 800, schaduw: false });
       ctx.drawImage(spr, bx - 24 - spr.width / 2, by - 24 - spr.height / 2);
@@ -428,12 +453,11 @@ export class SpoorSpel {
   _tekenLevelBanner(ctx) {
     const k = Math.min(1, (2.0 - this.levelBannerT) / 0.25);
     const alpha = this.levelBannerT > 0.5 ? 1 : this.levelBannerT / 0.5;
-    const letters = this.modus === "letter";
     const tekst = this.levelIdx < this.levels.length
-      ? (letters ? `de ${this.figuur.letter}!` : `Level ${this.levelIdx + 1}!`)
-      : (letters ? "Alle 26 letters gehaald!" : "Alle 100 levels gehaald!");
+      ? (this.figuur.banner ?? `Level ${this.levelIdx + 1}!`)
+      : `Alle ${this.levels.length} ${MODI[this.modus].meervoud} gehaald!`;
     const spr = tekstSprite(tekst, Math.round(this.H * 0.09), KLEUREN.AMBER,
-                            letters ? { font: KIDSFONT } : {});
+                            this.figuur.kader ? { font: KIDSFONT } : {});
     const s = 0.6 + 0.4 * k;
     ctx.globalAlpha = alpha;
     ctx.drawImage(spr, this.W / 2 - spr.width * s / 2, this.H * 0.30 - spr.height * s / 2,

@@ -26,11 +26,14 @@ const stip = (x, y) => arc(-Math.PI / 2, -Math.PI / 2 - TAU, 8, x, y, 0.05, 0.05
 // het boogje van n/m/h: vanaf de stok omhoog en over de heuvel naar rechts
 const boog = (cx, rx) => arc(Math.PI, 0, 14, cx, 0.72, rx, -0.22);
 
-const KADER = { minY: 0.02, maxY: 1.43 };  // vaste verticale maat (schrijflijnen)
+// vaste verticale maat (schrijflijnen) — ook gebruikt door de Woorden modus
+export const KADER = { minY: 0.02, maxY: 1.43 };
 
 function L(letter, ...paths) {
-  return { name: `de letter ${letter}`, letter, strokes: true, duo: false,
-           paths, kader: KADER };
+  return { name: `de letter ${letter}`, letter, toon: letter, strokes: true,
+           duo: false, paths, kader: KADER, banner: `de ${letter}!`,
+           zegNieuw: `de letter ${letter}`, zegKlaar: letter,
+           badges: paths.length > 1 ? paths.map((_, i) => i + 1) : null };
 }
 
 export const LETTERS = [

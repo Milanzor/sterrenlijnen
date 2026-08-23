@@ -8,6 +8,7 @@ import { Handen } from "./hands.js";
 import { SpoorSpel } from "./game.js";
 import { LEVELS } from "./figures.js";
 import { LETTERS } from "./letters.js";
+import { WOORDEN } from "./words.js";
 import { Effecten, Spoor, KLEUREN, tekenSter, gloedSprite, tekstSprite,
          maakSterrenhemel, maakVignet } from "./fx.js";
 import { Geluid } from "./audio.js";
@@ -228,27 +229,32 @@ async function start(modus = "level") {
   for (const b of document.querySelectorAll(".startknop")) b.disabled = true;
   try {  // font eerst, anders tekent het canvas de eerste tellen systeemfont
     await document.fonts.load('800 40px "Baloo 2"');
-    if (modus === "letter") await document.fonts.load("700 40px Kermit");
+    if (modus !== "level") await document.fonts.load("700 40px Kermit");
   } catch { /* systeemfont is dan de fallback */ }
   geluid = new Geluid();
   geluid.init();
   fx = new Effecten();
   const params = new URLSearchParams(location.search);
-  const lijst = modus === "letter" ? LETTERS : LEVELS;
+  const lijst = { level: LEVELS, letter: LETTERS, woord: WOORDEN }[modus];
   let startLevel = null;  // ?level=N springt naar dat level, ?duo naar het
-                          // eerste duo, ?letter=b naar die letter
+                          // eerste duo, ?letter=b / ?woord=kat daarnaartoe
   if (params.has("level")) {
     startLevel = Math.max(0, Math.min(lijst.length - 1, (parseInt(params.get("level")) || 1) - 1));
   } else if (modus === "letter" && params.has("letter")) {
     const i = LETTERS.findIndex(f => f.letter === (params.get("letter") || "").toLowerCase());
     if (i >= 0) startLevel = i;
+  } else if (modus === "woord" && params.has("woord")) {
+    const i = WOORDEN.findIndex(f => f.woord === (params.get("woord") || "").toLowerCase());
+    if (i >= 0) startLevel = i;
   } else if (modus === "level" && params.has("duo")) {
     startLevel = LEVELS.findIndex(f => f.duo);
   }
   spel = new SpoorSpel(W, H, fx, geluid, { startLevel, modus });
+  // wisselknop: toont steeds de vólgende modus in het rondje
   const wissel = document.getElementById("wissel");
-  wissel.textContent = modus === "letter" ? "⭐" : "🔤";
-  wissel.title = modus === "letter" ? "Naar de Level modus" : "Naar de Letter leer modus";
+  wissel.textContent = { level: "🔤", letter: "📖", woord: "⭐" }[modus];
+  wissel.title = { level: "Naar de Letter leer modus", letter: "Naar de Woorden modus",
+                   woord: "Naar de Level modus" }[modus];
   try {
     if (!DEMO) {
       const p2 = new URLSearchParams(location.search);
@@ -275,12 +281,13 @@ async function start(modus = "level") {
 
 document.getElementById("start").addEventListener("click", () => start("level"));
 document.getElementById("startLetters").addEventListener("click", () => start("letter"));
+document.getElementById("startWoorden").addEventListener("click", () => start("woord"));
 document.getElementById("wissel").addEventListener("click", () => {
-  // herladen in de andere modus; auto=1 zodat je niet opnieuw hoeft te klikken
+  // herladen in de volgende modus; auto=1 zodat je niet opnieuw hoeft te klikken
   const p = new URLSearchParams(location.search);
-  spel?.modus === "letter" ? p.delete("letters") : p.set("letters", "1");
-  p.delete("level");
-  p.delete("letter");
+  for (const key of ["letters", "woorden", "level", "letter", "woord"]) p.delete(key);
+  if (spel?.modus === "level") p.set("letters", "1");
+  else if (spel?.modus === "letter") p.set("woorden", "1");
   if (!DEMO) p.set("auto", "1");
   location.search = p.toString();
 });
@@ -295,6 +302,8 @@ document.getElementById("volscherm").addEventListener("click", () => {
 document.getElementById("overslaan").addEventListener("click", () => spel?.slaOver());
 // ?demo=1: geen camera, spookvingers spelen vanzelf; ?auto=1: meteen starten
 // mét camera (voor tests met een nepcamera in headless browsers);
-// ?letters=1 kiest daarbij de Letter leer modus
+// ?letters=1 / ?woorden=1 kiest daarbij de Letter leer of Woorden modus
 const _p = new URLSearchParams(location.search);
-if (DEMO || _p.has("auto")) start(_p.has("letters") ? "letter" : "level");
+if (DEMO || _p.has("auto")) {
+  start(_p.has("woorden") ? "woord" : _p.has("letters") ? "letter" : "level");
+}

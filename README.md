@@ -26,10 +26,12 @@ Elke statische webserver werkt. De camera vereist een veilige context:
 - `?demo=1&duo=1` — demostand die meteen met een duo-figuur begint.
 - `?letters=1` — start (met `auto`/`demo`) in de Letter leer modus;
   `?letter=b` springt naar die letter.
+- `?woorden=1` — idem voor de Woorden modus; `?woord=kat` springt naar
+  dat woord.
 - Knoppen linksboven: geluid aan/uit, volledig scherm, level overslaan en
   wisselen tussen de modi.
 
-## Twee modi
+## Drie modi
 
 - **Level modus** — de 100 figuren hieronder, oplopend in moeilijkheid.
 - **Letter leer modus** — alle 26 kleine drukletters (a t/m z) natrekken,
@@ -41,7 +43,13 @@ Elke statische webserver werkt. De camera vereist een veilige context:
   kan dus niet meegebundeld worden; wie het via Microsoft 365 op zijn
   machine heeft ziet het vanzelf, anders valt het terug op Baloo 2. Bij elke
   letter wordt de naam ook uitgesproken (SpeechSynthesis, Nederlands).
-  Voortgang wordt apart van de Level modus onthouden.
+- **Woorden modus** — twintig korte klankzuivere leeswoorden (ik, aap, kat,
+  vis … maan, roos, poes), samengesteld uit dezelfde letterhalen: je trekt
+  het woord letter voor letter, haal voor haal, elke letter in zijn eigen
+  kleur, en aan het eind wordt het woord uitgesproken.
+
+Elke modus onthoudt zijn eigen voortgang (localStorage); met de knop
+linksboven wissel je rond (Level → Letters → Woorden).
 
 ## Het spel
 

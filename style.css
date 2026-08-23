@@ -68,11 +68,18 @@ html, body {
 }
 .startknop:hover { transform: scale(1.06); }
 
-/* Letter leer modus: in het kinderfont Kermit (Microsoft 365) als dat er is */
-.startknop.letters {
+/* Letter/Woorden modus: in het kinderfont Kermit (Microsoft 365) als dat er is */
+.startknop.letters,
+.startknop.woorden {
   font-family: "Kermit", "Baloo 2", sans-serif;
+}
+.startknop.letters {
   background: #5fe3c4;
   box-shadow: 0 0 34px rgba(95, 227, 196, .5);
+}
+.startknop.woorden {
+  background: #c5a0ff;
+  box-shadow: 0 0 34px rgba(197, 160, 255, .5);
 }
 
 #foutmelding { color: #ff8a8a; font-size: 18px; max-width: 34em; }

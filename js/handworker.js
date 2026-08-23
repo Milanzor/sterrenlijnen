@@ -14,26 +14,41 @@ const TIP = 8;
 // niet tegen deze worker — dan krijg je "vendor/vendor/…".
 const WASM_MAP = new URL("../vendor/tasks-vision/wasm", self.location.href).href;
 const MODEL = new URL("../vendor/hand_landmarker.task", self.location.href).href;
+let TRAAG_MS = 45;      // GPU trager dan dit? dan is hij nep (softwarepad/leesstall)
+const PROEF_N = 12;     // aantal frames om dat over te meten
 let landmarker = null;
+let delegate = "GPU";
+let files = null;
+let tijden = [];
+let gewisseld = false;
+
+async function maak(gewenst) {
+  const opts = {
+    baseOptions: { modelAssetPath: MODEL, delegate: gewenst },
+    runningMode: "VIDEO",
+    numHands: 2,
+    minHandDetectionConfidence: 0.4,
+    minTrackingConfidence: 0.4,
+  };
+  const lm = await HandLandmarker.createFromOptions(files, opts);
+  delegate = gewenst;
+  return lm;
+}
 
 self.onmessage = async e => {
   const d = e.data;
   if (d.type === "init") {
     try {
-      const files = await FilesetResolver.forVisionTasks(WASM_MAP);
-      const opts = delegate => ({
-        baseOptions: { modelAssetPath: MODEL, delegate },
-        runningMode: "VIDEO",
-        numHands: 2,
-        minHandDetectionConfidence: 0.4,
-        minTrackingConfidence: 0.4,
-      });
-      try {
-        landmarker = await HandLandmarker.createFromOptions(files, opts("GPU"));
-      } catch {
-        landmarker = await HandLandmarker.createFromOptions(files, opts("CPU"));
+      if (typeof d.traagMs === "number") TRAAG_MS = d.traagMs;  // testhaakje
+      files = await FilesetResolver.forVisionTasks(WASM_MAP);
+      const voorkeur = d.voorkeur === "CPU" ? ["CPU"] : ["GPU", "CPU"];
+      let laatste = null;
+      for (const g of voorkeur) {
+        try { landmarker = await maak(g); break; }
+        catch (err) { laatste = err; }
       }
-      self.postMessage({ type: "klaar" });
+      if (!landmarker) throw laatste;
+      self.postMessage({ type: "klaar", delegate });
     } catch (err) {
       self.postMessage({ type: "fout", fout: String(err) });
     }
@@ -41,11 +56,33 @@ self.onmessage = async e => {
   }
   if (d.type === "frame" && landmarker) {
     let vingers = [];
+    const t0 = performance.now();
     try {
       const res = landmarker.detectForVideo(d.bitmap, d.ts);
       vingers = (res.landmarks || []).map(lm => ({ x: 1 - lm[TIP].x, y: lm[TIP].y }));
     } catch { /* enkel frame overslaan */ }
     d.bitmap.close();
-    self.postMessage({ type: "vingers", vingers });
+    const ms = performance.now() - t0;
+    self.postMessage({ type: "vingers", vingers, ms, delegate });
+    // Sommige drivers geven in een worker een "GPU" die stiekem software is
+    // (100+ ms per frame). Meet de eerste frames en waarschuw de hoofdthread:
+    // die kan dan overschakelen op main-thread-GPU (daar is WebGL wél echt).
+    if (!gewisseld && delegate === "GPU") {
+      tijden.push(ms);
+      if (tijden.length >= PROEF_N) {
+        gewisseld = true;
+        const mediaan = tijden.sort((a, b) => a - b)[PROEF_N >> 1];
+        if (mediaan > TRAAG_MS) self.postMessage({ type: "traag", mediaan });
+      }
+    }
+    return;
+  }
+  if (d.type === "wissel") {  // laatste redmiddel: CPU-wasm in de worker
+    try {
+      const oud = landmarker;
+      landmarker = await maak(d.naar || "CPU");
+      oud?.close();
+      self.postMessage({ type: "klaar", delegate });
+    } catch { /* dan maar blijven zoals het was */ }
   }
 };

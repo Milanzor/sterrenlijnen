@@ -17,6 +17,8 @@ const video = document.getElementById("cam");
 const overlay = document.getElementById("overlay");
 const foutEl = document.getElementById("foutmelding");
 const DEMO = new URLSearchParams(location.search).has("demo");
+const TOON_FPS = new URLSearchParams(location.search).has("fps");
+let renderFps = 0, _fpsN = 0, _fpsT0 = performance.now();
 
 let W = 0, H = 0, dpr = 1;
 let handen = null, spel = null, fx = null, geluid = null;
@@ -178,6 +180,20 @@ function teken(nu) {
   }
 
   tekenHud(nu);
+  if (TOON_FPS) {
+    if (++_fpsN === 30) {
+      const t = performance.now();
+      renderFps = 30000 / (t - _fpsT0);
+      _fpsN = 0; _fpsT0 = t;
+    }
+    const d = handen ?? {};
+    ctx.font = '600 15px "Baloo 2"';
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#9ff";
+    ctx.fillText(`render ${renderFps.toFixed(0)} fps · detectie ${(d.detectHz ?? 0).toFixed(1)} Hz` +
+                 ` · ${(d.detectMs ?? 0).toFixed(0)} ms · ${d.delegate ?? "-"}`, 14, H - 14);
+    window.__diag = { renderFps, detectHz: d.detectHz, detectMs: d.detectMs, delegate: d.delegate };
+  }
   if (!DEMO && vingers.length === 0 && nu - startTijd > 4) {
     const puls = 0.5 + 0.5 * Math.sin(nu * 2.4);
     const spr = tekstSprite("Wijs met je vinger naar het scherm!",
@@ -222,7 +238,9 @@ async function start() {
   spel = new SpoorSpel(W, H, fx, geluid, { startLevel });
   try {
     if (!DEMO) {
-      handen = new Handen(video);
+      const p2 = new URLSearchParams(location.search);
+      handen = new Handen(video, p2.get("delegate"));
+      if (p2.has("traag")) handen.traagMs = 0;  // testhaakje: forceer de wissel
       await handen.start();
     }
   } catch (e) {

@@ -1,19 +1,85 @@
 // Procedurele audio met WebAudio: geen bestanden, alles gesynthetiseerd.
-// Stipjes lopen een pentatonische ladder op; bij duo-figuren klinkt de tweede
-// hand een terts hoger — samen spelen klinkt dan letterlijk als samenspel.
+// Elke stip speelt de vólgende noot van een echt kinderliedje (alleen de
+// toonhoogtes — het ritme bepaal je zelf met je vinger). Bij duo-figuren
+// klinkt de tweede hand een terts hoger.
 
-const PENTA = [261.63, 293.66, 329.63, 392.00, 440.00,
-               523.25, 587.33, 659.26, 784.00, 880.00];
 const MAJOR = [0, 2, 4, 5, 7, 9, 11];
 const degFreq = (deg, oct = 0) =>
   440 * 2 ** ((60 + 12 * (oct + Math.floor(deg / 7)) + MAJOR[((deg % 7) + 7) % 7] - 69) / 12);
+
+// Liedjesbank: melodieën als toonladder-graden in majeur (0 = do, negatief =
+// onder de do). Een lied loopt gewoon door over stippen, halen en levels heen;
+// is het uit, dan komt het volgende van de geschudde stapel — pas als álle
+// liedjes geweest zijn wordt er opnieuw geschud, dus niks herhaalt snel.
+const LIEDJES = [
+  // Vader Jacob
+  [0, 1, 2, 0, 0, 1, 2, 0, 2, 3, 4, 2, 3, 4,
+   4, 5, 4, 3, 2, 0, 4, 5, 4, 3, 2, 0, 0, -3, 0, 0, -3, 0],
+  // Altijd is Kortjakje ziek
+  [0, 0, 4, 4, 5, 5, 4, 3, 3, 2, 2, 1, 1, 0,
+   4, 4, 3, 3, 2, 2, 1, 4, 4, 3, 3, 2, 2, 1,
+   0, 0, 4, 4, 5, 5, 4, 3, 3, 2, 2, 1, 1, 0],
+  // Poesje mauw
+  [4, 2, 2, 3, 1, 1, 0, 1, 2, 3, 4, 4, 4,
+   4, 2, 2, 3, 1, 1, 0, 2, 4, 4, 0],
+  // Mary had a little lamb
+  [2, 1, 0, 1, 2, 2, 2, 1, 1, 1, 2, 4, 4,
+   2, 1, 0, 1, 2, 2, 2, 2, 1, 1, 2, 1, 0],
+  // Ode an die Freude (Beethoven)
+  [2, 2, 3, 4, 4, 3, 2, 1, 0, 0, 1, 2, 2, 1, 1,
+   2, 2, 3, 4, 4, 3, 2, 1, 0, 0, 1, 2, 1, 0, 0],
+  // London Bridge
+  [4, 5, 4, 3, 2, 3, 4, 1, 2, 3, 2, 3, 4,
+   4, 5, 4, 3, 2, 3, 4, 1, 4, 2, 0],
+  // Row, row, row your boat
+  [0, 0, 0, 1, 2, 2, 1, 2, 3, 4,
+   7, 7, 7, 4, 4, 4, 2, 2, 2, 0, 0, 0, 4, 3, 2, 1, 0],
+  // Lang zal die leven (Happy Birthday)
+  [-3, -3, -2, -3, 0, -1, -3, -3, -2, -3, 1, 0,
+   -3, -3, 4, 2, 0, -1, -2, 3, 3, 2, 0, 1, 0],
+  // Jingle Bells (refrein)
+  [2, 2, 2, 2, 2, 2, 2, 4, 0, 1, 2,
+   3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 1, 1, 2, 1, 4,
+   2, 2, 2, 2, 2, 2, 2, 4, 0, 1, 2,
+   3, 3, 3, 3, 3, 2, 2, 2, 4, 4, 3, 1, 0],
+  // Old MacDonald
+  [0, 0, 0, -3, -2, -2, -3, 2, 2, 1, 1, 0,
+   -3, 0, 0, 0, -3, -2, -2, -3, 2, 2, 1, 1, 0],
+  // When the Saints Go Marching In
+  [0, 2, 3, 4, 0, 2, 3, 4, 0, 2, 3, 4, 2, 0, 2, 1,
+   2, 2, 1, 0, 0, 2, 4, 4, 4, 3, 2, 3, 4, 2, 0, 1, 0],
+  // Au clair de la lune
+  [0, 0, 0, 1, 2, 1, 0, 2, 1, 1, 0,
+   0, 0, 0, 1, 2, 1, 0, 2, 1, 1, 0],
+  // Hot Cross Buns
+  [2, 1, 0, 2, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 1, 0],
+  // Hansje Pansje Kevertje (Itsy Bitsy Spider)
+  [-3, 0, 0, 0, 1, 2, 2, 2, 1, 0, 1, 2, 0,
+   2, 2, 3, 4, 4, 3, 2, 3, 4, 2,
+   0, 0, 1, 2, 2, 1, 0, 1, 2, 0,
+   -3, -3, 0, 0, 0, 1, 2, 2, 2, 1, 0, 1, 2, 0],
+  // This Old Man
+  [4, 2, 4, 4, 2, 4, 5, 4, 3, 2, 1, 2, 3,
+   2, 3, 4, 0, 0, 0, 0, 0, 1, 2, 3, 4, 4, 1, 1, 3, 2, 1, 0],
+  // Yankee Doodle
+  [0, 0, 1, 2, 0, 2, 1, -3, 0, 0, 1, 2, 0, -1,
+   0, 0, 1, 2, 3, 2, 1, 0, -1, -3, -2, -1, 0, 0],
+  // Camptown Races
+  [4, 4, 2, 4, 5, 4, 2, 2, 1, 2, 1,
+   4, 4, 2, 4, 5, 4, 2, 1, 2, 1, 0],
+  // Oh! Susanna
+  [0, 1, 2, 4, 4, 5, 4, 2, 0, 1, 2, 2, 1, 0, 1,
+   0, 1, 2, 4, 4, 5, 4, 2, 0, 1, 2, 2, 1, 1, 0],
+];
 
 export class Geluid {
   constructor() {
     this.ctx = null;
     this.aan = true;
-    this._ladder = 0;
-    this._lastPop = -10;
+    this._lied = null;    // huidige melodie (graden)
+    this._noot = 0;       // positie in de melodie
+    this._stapel = [];    // geschudde stapel liedjes die nog moeten
+    this._vorigLied = -1;
     this._muziekTimer = null;
   }
 
@@ -76,15 +142,31 @@ export class Geluid {
 
   // ---------- effecten ----------
 
+  _volgendeNoot() {
+    if (!this._lied || this._noot >= this._lied.length) {
+      if (!this._stapel.length) {  // alles gehad: opnieuw schudden (Fisher-Yates)
+        this._stapel = LIEDJES.map((_, i) => i);
+        for (let i = this._stapel.length - 1; i > 0; i--) {
+          const j = (Math.random() * (i + 1)) | 0;
+          [this._stapel[i], this._stapel[j]] = [this._stapel[j], this._stapel[i]];
+        }
+        // niet hetzelfde lied twee keer achter elkaar
+        if (this._stapel[this._stapel.length - 1] === this._vorigLied) {
+          this._stapel.unshift(this._stapel.pop());
+        }
+      }
+      this._vorigLied = this._stapel.pop();
+      this._lied = LIEDJES[this._vorigLied];
+      this._noot = 0;
+    }
+    return this._lied[this._noot++];
+  }
+
   pop(duoTerts = false) {
     if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-    if (now - this._lastPop > 1.5) this._ladder = 0;
-    this._lastPop = now;
-    const i = this._ladder % PENTA.length;
-    this._ladder++;
-    this._toon(PENTA[i], 0.42, { gain: 0.4 });
-    if (duoTerts) this._toon(PENTA[(i + 2) % PENTA.length], 0.42, { gain: 0.28 });
+    const noot = this._volgendeNoot();
+    this._toon(degFreq(noot), 0.42, { gain: 0.4 });
+    if (duoTerts) this._toon(degFreq(noot + 2), 0.42, { gain: 0.28 });
   }
 
   tada() {
@@ -128,15 +210,13 @@ export class Geluid {
   }
 
   // ---------- muziekje ----------
-  // Eén vrolijk loopje (tokkelmelodie + bas), gepland met een lookahead-timer.
+  // Zachte bas/akkoord-puls (I–vi–IV–V), gepland met een lookahead-timer.
+  // Bewust géén eigen melodielijn: de mélodie komt van de stipjes — dat zijn
+  // echte kinderliedjes, en die moeten herkenbaar blijven.
 
   _startMuziek() {
     const bpm = 112, spb = 60 / bpm;
-    // maten van 4 tellen; akkoorden I–vi–IV–V; melodie als [tel, duur, graad]
-    const chords = [0, 5, 3, 4];
-    const melA = [[0, 1, 0], [1, 1, 1], [2, 1, 2], [3, 1, 1]];
-    const melB = [[0, 1, 2], [1, 1, 3], [2, 2, 2]];
-    const steps = [0, 2, 4, 7, 9];
+    const chords = [0, 5, 3, 4];  // maten van 4 tellen; akkoorden I–vi–IV–V
     const barLen = 4 * spb, loopLen = chords.length * barLen;
     let nextLoop = this.ctx.currentTime + 0.1;
     const plan = () => {
@@ -144,12 +224,6 @@ export class Geluid {
       while (nextLoop < this.ctx.currentTime + 1.2) {
         const at0 = nextLoop - this.ctx.currentTime;
         chords.forEach((root, bar) => {
-          const mel = bar % 2 === 0 ? melA : melB;
-          for (const [beat, dur, step] of mel) {
-            this._toon(degFreq(root + steps[step % steps.length], 1), dur * spb * 0.9,
-                       { at: at0 + bar * barLen + beat * spb, gain: 0.5,
-                         bus: this.muziekBus, harm: 0.5 });
-          }
           this._toon(degFreq(root, -1), 0.9 * spb,
                      { at: at0 + bar * barLen, gain: 0.5, bus: this.muziekBus });
           this._toon(degFreq(root + 4, -1), 0.45 * spb,

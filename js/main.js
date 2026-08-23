@@ -229,7 +229,7 @@ async function start(modus = "level") {
   for (const b of document.querySelectorAll(".startknop")) b.disabled = true;
   try {  // font eerst, anders tekent het canvas de eerste tellen systeemfont
     await document.fonts.load('800 40px "Baloo 2"');
-    if (modus !== "level") await document.fonts.load("700 40px Kermit");
+    if (modus !== "level") await document.fonts.load('400 40px "Playwrite NL"');
   } catch { /* systeemfont is dan de fallback */ }
   geluid = new Geluid();
   geluid.init();

@@ -4,6 +4,13 @@
   font-weight: 400 800;
 }
 
+/* Nederlands schoolschrift met lussen (Google/TypeTogether, OFL, gebundeld) */
+@font-face {
+  font-family: "Playwrite NL";
+  src: url("assets/PlaywriteNL.ttf") format("truetype");
+  font-weight: 100 400;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body {
@@ -68,10 +75,11 @@ html, body {
 }
 .startknop:hover { transform: scale(1.06); }
 
-/* Letter/Woorden modus: in het kinderfont Kermit (Microsoft 365) als dat er is */
+/* Letter/Woorden modus: in het schoolschrift (Playwrite NL heeft geen vet) */
 .startknop.letters,
 .startknop.woorden {
-  font-family: "Kermit", "Baloo 2", sans-serif;
+  font-family: "Playwrite NL", "Baloo 2", sans-serif;
+  font-weight: 400;
 }
 .startknop.letters {
   background: #5fe3c4;

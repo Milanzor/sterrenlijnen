@@ -15,7 +15,6 @@ import { LETTERS } from "./letters.js";
 import { WOORDEN } from "./words.js";
 import { KLEUREN, SPEELKLEUREN, KIDSFONT, tekenSter, tekstSprite } from "./fx.js";
 
-const AHEAD = 2;      // stipjes vooruit mogen (tegen wild zwaaien)
 const LEAD_MAX = 2;   // duo: zoveel stipjes mag de ene lijn voorlopen
 const OPSLAG = "sterrenlijnen";
 const MODI = {
@@ -189,15 +188,18 @@ export class SpoorSpel {
   }
 
   _trekken(v, padIdx, nu) {
+    // Strikt op volgorde: alleen de éérstvolgende stip telt. Stipjes verderop
+    // aanraken doet niets — geen voorsprong nemen, geen gaten overslaan. De
+    // while laat een snelle vinger binnen één frame wel meerdere stipjes
+    // ná elkaar pakken, maar nooit buiten de volgorde om.
     const pad = this.paden[padIdx];
     const ander = this.figuur.duo && this.paden.length > 1 ? this.paden[1 - padIdx] : null;
     const HIT2 = (this.H * 0.062) ** 2;
     const pts = [[v.x, v.y], [(v.x + v.px) / 2, (v.y + v.py) / 2]];
-    const tot = Math.min(pad.progress + 1 + AHEAD, pad.dots.length);
-    for (let i = pad.progress; i < tot; i++) {
-      if (pad.lit[i]) continue;
+    while (pad.progress < pad.dots.length) {
+      const i = pad.progress;
       const [dx, dy] = pad.dots[i];
-      if (!pts.some(([px, py]) => (px - dx) ** 2 + (py - dy) ** 2 < HIT2)) continue;
+      if (!pts.some(([px, py]) => (px - dx) ** 2 + (py - dy) ** 2 < HIT2)) break;
       if (ander && this._aantalLit(pad) - this._aantalLit(ander) >= LEAD_MAX) {
         // wacht op je andere hand: zachte puls + heel af en toe een tikje
         this.waitPulse[padIdx] = 0.6;
@@ -205,16 +207,16 @@ export class SpoorSpel {
           this._lastWaitTik = nu;
           this.geluid.wacht();
         }
-        continue;
+        break;
       }
       pad.lit[i] = true;
       pad.litAt[i] = nu;
       pad.lastLitTime = nu;
       this.lastLit = nu;
+      pad.progress++;
       this.geluid.pop(this.figuur.duo && padIdx === 1);
       this.fx.gloed(dx, dy, pad.kleur, 4, 0.5);
     }
-    while (pad.progress < pad.dots.length && pad.lit[pad.progress]) pad.progress++;
   }
 
   _aantalLit(pad) { return pad.lit.reduce((a, b) => a + (b ? 1 : 0), 0); }
@@ -272,7 +274,7 @@ export class SpoorSpel {
     // figuurnaam bovenin (bounce'je zolang het figuur net af is), uit de cache
     const naam = this.figuur.name + (duo ? "  ✦ twee handen!" : "");
     const spr = tekstSprite(naam, Math.round(this.H * 0.055), this.paden[0].kleur,
-                            schrijf ? { font: KIDSFONT } : {});
+                            schrijf ? { font: KIDSFONT, gewicht: 400 } : {});
     const schaal = this.doneT > 0 ? 1 + Math.sin(Math.min(1, this.sweepT / 0.3) * Math.PI) * 0.18 : 1;
     ctx.drawImage(spr, this.W / 2 - spr.width * schaal / 2,
                   this.H * 0.15 - spr.height * schaal / 2,
@@ -281,9 +283,9 @@ export class SpoorSpel {
     // voorbeeld naast de schrijfregel, in het kinderfont (Kermit):
     // de losse letter groot, een heel woord wat kleiner
     if (this.figuur.toon) {
-      const px = Math.round(this.H * (this.figuur.toon.length > 1 ? 0.13 : 0.26));
+      const px = Math.round(this.H * (this.figuur.toon.length > 1 ? 0.11 : 0.22));
       const vb = tekstSprite(this.figuur.toon, px, this.paden[0].kleur,
-                             { font: KIDSFONT, gewicht: 700 });
+                             { font: KIDSFONT, gewicht: 400 });
       const vx = this.schrijflijnen.x0 - this.schrijflijnen.k * 0.42;
       if (vx - vb.width / 2 > 8) {
         ctx.globalAlpha = 0.9;
@@ -457,7 +459,7 @@ export class SpoorSpel {
       ? (this.figuur.banner ?? `Level ${this.levelIdx + 1}!`)
       : `Alle ${this.levels.length} ${MODI[this.modus].meervoud} gehaald!`;
     const spr = tekstSprite(tekst, Math.round(this.H * 0.09), KLEUREN.AMBER,
-                            this.figuur.kader ? { font: KIDSFONT } : {});
+                            this.figuur.kader ? { font: KIDSFONT, gewicht: 400 } : {});
     const s = 0.6 + 0.4 * k;
     ctx.globalAlpha = alpha;
     ctx.drawImage(spr, this.W / 2 - spr.width * s / 2, this.H * 0.30 - spr.height * s / 2,

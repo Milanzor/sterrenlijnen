@@ -8,10 +8,10 @@ export const KLEUREN = {
 export const SPEELKLEUREN = [KLEUREN.TEAL, KLEUREN.CORAL, KLEUREN.LILA,
                              KLEUREN.SKY, KLEUREN.LIME, KLEUREN.ROSE];
 
-// Kinderletterfont: Kermit (Underware/Microsoft) is niet vrij te bundelen,
-// maar staat op veel machines via Microsoft 365 — wie hem heeft ziet hem,
-// anders valt het terug op onze eigen Baloo 2.
-export const KIDSFONT = '"Kermit", "Baloo 2", sans-serif';
+// Schrijffont: Playwrite NL (Google/TypeTogether, OFL — meegebundeld in
+// assets/), het lopende schoolschrift met lussen zoals kinderen in Nederland
+// leren schrijven ("verbonden schrift", gebaseerd op het Primarium-onderzoek).
+export const KIDSFONT = '"Playwrite NL", "Baloo 2", sans-serif';
 
 // Gloedbolletjes vooraf renderen: createRadialGradient per frame per deeltje
 // was een van de grootste framekosten.
@@ -45,7 +45,8 @@ export function tekstSprite(tekst, px, kleur,
     g0.font = `${gewicht} ${px}px ${font}`;
     const pad = Math.ceil(px * 0.5);
     c.width = Math.ceil(g0.measureText(tekst).width) + pad * 2;
-    c.height = Math.ceil(px * 1.5);
+    // schrijfletters hebben lange stokken en lussen: ruimer opmeten
+    c.height = Math.ceil(px * (font.includes("Playwrite") ? 2.4 : 1.5));
     const g = c.getContext("2d");
     g.font = `${gewicht} ${px}px ${font}`;
     g.textAlign = "center";

@@ -38,11 +38,11 @@ Elke statische webserver werkt. De camera vereist een veilige context:
   haal voor haal in de échte schrijfvolgorde en -richting, zoals op school:
   cijfertjes markeren waar elke haal begint, en je trekt ze ná elkaar.
   De letters staan tussen schrijflijnen (grondlijn, x-hoogte, bovenlijn) en
-  naast de schrijfregel staat de letter als voorbeeld in het kinderfont
-  **Kermit** (Underware/Microsoft 365). Kermit is een commercieel font en
-  kan dus niet meegebundeld worden; wie het via Microsoft 365 op zijn
-  machine heeft ziet het vanzelf, anders valt het terug op Baloo 2. Bij elke
-  letter wordt de naam ook uitgesproken (SpeechSynthesis, Nederlands).
+  naast de schrijfregel staat de letter als voorbeeld in **Playwrite NL**
+  (Google/TypeTogether, OFL, meegebundeld in `assets/`): het Nederlandse
+  verbonden schoolschrift met lussen, gebaseerd op het Primarium-onderzoek
+  naar hoe kinderen hier leren schrijven. Bij elke letter wordt de naam ook
+  uitgesproken (SpeechSynthesis, Nederlands).
 - **Woorden modus** — twintig korte klankzuivere leeswoorden (ik, aap, kat,
   vis … maan, roos, poes), samengesteld uit dezelfde letterhalen: je trekt
   het woord letter voor letter, haal voor haal, elke letter in zijn eigen
@@ -56,8 +56,9 @@ linksboven wissel je rond (Level → Letters → Woorden).
 - **Eén vinger.** Alleen je wijsvingertop trekt de lijn — dat is veel
   preciezer en natuurlijker dan een hele hand. Je vinger krijgt een gloeiend
   spoor in de kleur van de lijn; een draaiend sterretje wijst steeds de
-  volgende stip aan. Wild zwaaien werkt niet: je mag maar een paar stipjes
-  vooruit.
+  volgende stip aan. Strikt op volgorde: alleen de eerstvolgende stip telt —
+  stipjes verderop aanraken doet niets, dus wild zwaaien of vooruitwerken
+  kan niet.
 - **100 unieke levels**, oplopend in moeilijkheid: van lijn, vinkje en
   regenboog via cijfers (1, 2, 3, 5, 6, 7, 9 — spelend leren schrijven),
   bootje, kasteel, paddenstoel en ufo naar klavertje vier, propeller,
@@ -75,7 +76,11 @@ linksboven wissel je rond (Level → Letters → Woorden).
   ("wacht op je andere hand…") tot je andere hand heeft bijgehaald. Lopen ze
   samen, dan glinstert er een lijn tussen je vingers en klinken de nootjes in
   tertsen. Duo-figuren leveren extra sterren op.
-- Elke stip speelt de volgende noot van een pentatonische ladder; een figuur
+- **Elke stip speelt de volgende noot van een écht kinderliedje** — achttien
+  melodieën (Vader Jacob, Kortjakje, Poesje mauw, Hansje Pansje, Ode an die
+  Freude, Jingle Bells, When the Saints …) in een geschudde stapel: pas als
+  alle liedjes geweest zijn wordt er opnieuw geschud, en nooit twee keer
+  hetzelfde achter elkaar. Het ritme bepaal je zelf met je vinger. Een figuur
   af geeft een lichtstreep over de hele lijn, confetti en sterren. Om de 12
   sterren een level-fanfare. Geen game-over, alleen sterren verdienen.
 
@@ -91,8 +96,10 @@ linksboven wissel je rond (Level → Letters → Woorden).
 - Tekenwerk is gierig gehouden: gloed als vooraf gerenderde sprites (geen
   gradients per frame), lijngloed met dubbele strokes in plaats van dure
   shadowBlur, en teksten uit een canvas-cache.
-- Geluid is procedureel met WebAudio: pentatonische nootjes, tada's, fanfare
-  en een vrolijk achtergrondloopje — geen audiobestanden.
+- Geluid is procedureel met WebAudio: kinderliedjes noot voor noot (audio.js
+  LIEDJES, toonladder-graden in majeur), tada's, fanfare en een zachte
+  bas/akkoord-puls als achtergrond — geen audiobestanden. De achtergrond
+  heeft bewust geen eigen melodielijn: de melodie komt van de stipjes.
 - `js/figures.js` bevat de figurenbibliotheek (duo-figuren als
   rechterpad + spiegeling), `game.js` de spelregels (voortgang, duo-
   synchronisatie), `fx.js` de deeltjes/confetti/sporen, `hands.js` de

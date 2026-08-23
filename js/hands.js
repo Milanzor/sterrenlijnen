@@ -1,18 +1,19 @@
-// Camera + handdetectie in de browser: MediaPipe HandLandmarker (WASM),
-// volledig lokaal gebundeld in vendor/ — er gaat niets het netwerk over.
+// Camera + handdetectie: MediaPipe HandLandmarker (WASM), volledig lokaal
+// gebundeld in vendor/ — er gaat niets het netwerk over.
 //
+// De detectie draait in een Web Worker op verkleinde frames (480×270, ruim
+// genoeg voor vingertoppen), zodat de renderlus er nooit op hoeft te wachten.
 // We gebruiken alléén de wijsvingertop (landmark 8): met één vinger volgen
 // voelt veel natuurlijker en preciezer dan met een hele hand.
 
-import { FilesetResolver, HandLandmarker } from "../vendor/tasks-vision/vision_bundle.mjs";
-
-const TIP = 8;
+const INFER_W = 480, INFER_H = 270;
 
 export class Handen {
   constructor(video) {
     this.video = video;
-    this.landmarker = null;
     this.vingers = [];      // [{x, y}] genormaliseerd, al gespiegeld
+    this.worker = null;
+    this._bezig = false;    // hooguit één frame tegelijk onderweg
     this._lastVideoTime = -1;
     this._lastTs = 0;
   }
@@ -31,41 +32,37 @@ export class Handen {
       setTimeout(af, 4000);  // uiterste geval: start gewoon, de lus wacht wel op beeld
     }));
 
-    const modelKlaar = (async () => {
-      const files = await FilesetResolver.forVisionTasks("vendor/tasks-vision/wasm");
-      const opts = delegate => ({
-        baseOptions: { modelAssetPath: "vendor/hand_landmarker.task", delegate },
-        runningMode: "VIDEO",
-        numHands: 2,
-        minHandDetectionConfidence: 0.4,
-        minTrackingConfidence: 0.4,
-      });
-      try {
-        this.landmarker = await HandLandmarker.createFromOptions(files, opts("GPU"));
-      } catch {
-        this.landmarker = await HandLandmarker.createFromOptions(files, opts("CPU"));
-      }
-      console.log("sterrenlijnen: handmodel klaar");
-    })();
+    const modelKlaar = new Promise((klaar, fout) => {
+      this.worker = new Worker("js/handworker.js", { type: "module" });
+      this.worker.onmessage = e => {
+        if (e.data.type === "klaar") {
+          console.log("sterrenlijnen: handmodel klaar");
+          klaar();
+        } else if (e.data.type === "fout") {
+          fout(new Error(e.data.fout));
+        } else if (e.data.type === "vingers") {
+          this.vingers = e.data.vingers;
+          this._bezig = false;
+        }
+      };
+      this.worker.onerror = err => fout(err);
+      this.worker.postMessage({ type: "init" });
+    });
 
     await Promise.all([cameraKlaar, modelKlaar]);
   }
 
   update() {
     const v = this.video;
-    if (!this.landmarker || v.readyState < 2 || v.currentTime === this._lastVideoTime) return;
+    if (!this.worker || this._bezig || v.readyState < 2
+        || v.currentTime === this._lastVideoTime) return;
     this._lastVideoTime = v.currentTime;
+    this._bezig = true;
     const ts = Math.max(this._lastTs + 1, Math.round(performance.now()));
     this._lastTs = ts;
-    let res;
-    try {
-      res = this.landmarker.detectForVideo(v, ts);
-    } catch {
-      return;
-    }
-    this.vingers = (res.landmarks || []).map(lm => ({
-      x: 1 - lm[TIP].x,  // spiegelen: het scherm is een spiegel
-      y: lm[TIP].y,
-    }));
+    createImageBitmap(v, { resizeWidth: INFER_W, resizeHeight: INFER_H,
+                           resizeQuality: "low" })
+      .then(bitmap => this.worker.postMessage({ type: "frame", bitmap, ts }, [bitmap]))
+      .catch(() => { this._bezig = false; });
   }
 }

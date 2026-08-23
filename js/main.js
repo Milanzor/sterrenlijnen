@@ -6,7 +6,9 @@
 
 import { Handen } from "./hands.js";
 import { SpoorSpel } from "./game.js";
-import { Effecten, Spoor, KLEUREN, tekenSter, maakSterrenhemel, maakVignet } from "./fx.js";
+import { LEVELS } from "./figures.js";
+import { Effecten, Spoor, KLEUREN, tekenSter, gloedSprite, tekstSprite,
+         maakSterrenhemel, maakVignet } from "./fx.js";
 import { Geluid } from "./audio.js";
 
 const canvas = document.getElementById("scherm");
@@ -167,13 +169,7 @@ function teken(nu) {
     v.spoor.teken(ctx, kleur, nu);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
-    const g = ctx.createRadialGradient(v.x, v.y, 0, v.x, v.y, 26);
-    g.addColorStop(0, kleur);
-    g.addColorStop(1, "transparent");
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(v.x, v.y, 26, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.drawImage(gloedSprite(kleur), v.x - 26, v.y - 26, 52, 52);
     ctx.restore();
     ctx.fillStyle = "#fff";
     ctx.beginPath();
@@ -184,11 +180,10 @@ function teken(nu) {
   tekenHud(nu);
   if (!DEMO && vingers.length === 0 && nu - startTijd > 4) {
     const puls = 0.5 + 0.5 * Math.sin(nu * 2.4);
-    ctx.font = `800 ${Math.round(H * 0.05)}px "Baloo 2"`;
-    ctx.textAlign = "center";
+    const spr = tekstSprite("Wijs met je vinger naar het scherm!",
+                            Math.round(H * 0.05), "#fff");
     ctx.globalAlpha = 0.6 + 0.4 * puls;
-    ctx.fillStyle = "#fff";
-    ctx.fillText("Wijs met je vinger naar het scherm!", W / 2, H * 0.66);
+    ctx.drawImage(spr, W / 2 - spr.width / 2, H * 0.66 - spr.height / 2);
     ctx.globalAlpha = 1;
   }
 }
@@ -200,9 +195,9 @@ function tekenHud(nu) {
   ctx.textAlign = "left";
   ctx.fillStyle = "#fff";
   ctx.fillText(String(spel.sterren), sx + 36, sy + 18);
-  ctx.font = `600 ${Math.round(H * 0.024)}px "Baloo 2"`;
-  ctx.fillStyle = "rgba(210,214,245,0.9)";
-  ctx.fillText(`Level ${spel.level}`, sx + 38, sy + 44);
+  const lbl = tekstSprite(spel.levelLabel, Math.round(H * 0.024), "rgba(210,214,245,0.95)",
+                          { gewicht: 600, schaduw: false });
+  ctx.drawImage(lbl, W - 16 - lbl.width, sy + 26);
 }
 
 // ---------- opstarten ----------
@@ -217,9 +212,14 @@ async function start() {
   geluid = new Geluid();
   geluid.init();
   fx = new Effecten();
-  spel = new SpoorSpel(W, H, fx, geluid, {
-    duoEerst: new URLSearchParams(location.search).has("duo"),
-  });
+  const params = new URLSearchParams(location.search);
+  let startLevel = null;  // ?level=N springt naar dat level, ?duo naar het eerste duo
+  if (params.has("level")) {
+    startLevel = Math.max(0, Math.min(LEVELS.length - 1, (parseInt(params.get("level")) || 1) - 1));
+  } else if (params.has("duo")) {
+    startLevel = LEVELS.findIndex(f => f.duo);
+  }
+  spel = new SpoorSpel(W, H, fx, geluid, { startLevel });
   try {
     if (!DEMO) {
       handen = new Handen(video);
@@ -249,6 +249,7 @@ document.getElementById("volscherm").addEventListener("click", () => {
   document.fullscreenElement ? document.exitFullscreen()
                              : document.documentElement.requestFullscreen();
 });
+document.getElementById("overslaan").addEventListener("click", () => spel?.slaOver());
 // ?demo=1: geen camera, spookvingers spelen vanzelf; ?auto=1: meteen starten
 // mét camera (voor tests met een nepcamera in headless browsers)
 if (DEMO || new URLSearchParams(location.search).has("auto")) start();

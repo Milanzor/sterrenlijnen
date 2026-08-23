@@ -5,29 +5,39 @@
 // Loop je te ver voor, dan "wacht" jouw volgende stipje tot je andere hand
 // heeft bijgehaald — zo ontstaat vanzelf het samen-bewegen.
 
-import { makeQueue, refillQueue, fitPaths } from "./figures.js";
-import { KLEUREN, SPEELKLEUREN, tekenSter } from "./fx.js";
+import { LEVELS, fitPaths } from "./figures.js";
+import { KLEUREN, SPEELKLEUREN, tekenSter, tekstSprite } from "./fx.js";
 
 const AHEAD = 2;      // stipjes vooruit mogen (tegen wild zwaaien)
 const LEAD_MAX = 2;   // duo: zoveel stipjes mag de ene lijn voorlopen
-const STARS_PER_LEVEL = 12;
+const OPSLAG = "sterrenlijnen";
+
+function laadVoortgang() {
+  try {
+    const d = JSON.parse(localStorage.getItem(OPSLAG)) || {};
+    return { level: Math.min(Math.max(d.level | 0, 0), LEVELS.length),
+             sterren: Math.max(d.sterren | 0, 0) };
+  } catch {
+    return { level: 0, sterren: 0 };
+  }
+}
 
 export class SpoorSpel {
-  constructor(W, H, fx, geluid, { duoEerst = false } = {}) {
+  constructor(W, H, fx, geluid, { startLevel = null } = {}) {
     this.W = W; this.H = H;
     this.fx = fx;
     this.geluid = geluid;
-    this.sterren = 0;
-    this.level = 1;
+    const opgeslagen = laadVoortgang();
+    this.levelIdx = startLevel ?? opgeslagen.level;  // 0-based; 100 = alles af
+    this.sterren = startLevel === null ? opgeslagen.sterren : 0;
     this.levelBannerT = 0;
-    this.queue = makeQueue();
-    if (duoEerst) this.queue.sort((a, b) => b.duo - a.duo);
     this.doneT = 0;
     this.sweepT = -1;
     this.lastLit = performance.now() / 1000;
     this.duoHintT = 0;
     this.waitPulse = [0, 0];
     this._lastWaitTik = 0;
+    this._vrijSpelIdx = null;  // na level 100: willekeurig figuur
     this.nieuwFiguur();
   }
 
@@ -35,9 +45,32 @@ export class SpoorSpel {
 
   get hudSterPos() { return [this.W - 130, 54]; }
 
+  get levelLabel() {
+    return this.levelIdx < LEVELS.length
+      ? `Level ${this.levelIdx + 1}/${LEVELS.length}`
+      : `${LEVELS.length} ✓ · vrij spelen`;
+  }
+
+  bewaar() {
+    try {
+      localStorage.setItem(OPSLAG, JSON.stringify(
+        { level: this.levelIdx, sterren: this.sterren }));
+    } catch { /* privémodus o.i.d.: dan even niet */ }
+  }
+
   nieuwFiguur(zelfde = null) {
-    if (!this.queue.length) this.queue = refillQueue();
-    const spec = zelfde ?? this.queue.shift();
+    let spec = zelfde;
+    if (!spec) {
+      if (this.levelIdx < LEVELS.length) {
+        spec = LEVELS[this.levelIdx];
+      } else {  // alles gehaald: vrij spelen, willekeurige volgorde
+        let i;
+        do { i = Math.floor(Math.random() * LEVELS.length); }
+        while (i === this._vrijSpelIdx);
+        this._vrijSpelIdx = i;
+        spec = LEVELS[i];
+      }
+    }
     this.figuur = spec;
     const spacing = this.H * 0.082;
     const fitted = fitPaths(spec.paths, this.W, this.H, spacing);
@@ -71,7 +104,7 @@ export class SpoorSpel {
     if (this.doneT > 0) {
       this.doneT -= dt;
       this.sweepT += dt;
-      if (this.doneT <= 0) this.nieuwFiguur();
+      if (this.doneT <= 0) this._volgendLevel();
       return;
     }
 
@@ -156,20 +189,29 @@ export class SpoorSpel {
     }
     const winst = duo ? 5 : 3;  // duo = 2×2 vliegers + bonusster
     if (duo) this.fx.vlieger(this.W / 2, this.H * 0.4, ...this.hudSterPos);
-    this._sterrenErbij(winst);
+    this.sterren += winst;
     this.doneT = 1.9;
     this.sweepT = 0;
   }
 
-  _sterrenErbij(n) {
-    this.sterren += n;
-    const nieuw = Math.floor(this.sterren / STARS_PER_LEVEL) + 1;
-    if (nieuw !== this.level) {
-      this.level = nieuw;
-      this.levelBannerT = 2.2;
-      this.geluid.fanfare();
-      for (let i = 0; i < 24; i++) this.fx.confetti(this.W / 2, this.H * 0.35, 1);
+  _volgendLevel() {
+    if (this.levelIdx < LEVELS.length) {
+      this.levelIdx++;
+      this.levelBannerT = 2.0;
+      if (this.levelIdx % 10 === 0 || this.levelIdx === LEVELS.length) {
+        // mijlpaal: elke tien levels een feestje
+        this.geluid.fanfare();
+        for (let i = 0; i < 24; i++) this.fx.confetti(this.W / 2, this.H * 0.35, 1);
+      }
     }
+    this.bewaar();
+    this.nieuwFiguur();
+  }
+
+  slaOver() {  // voor als een figuur écht niet lukt (knopje voor papa/mama)
+    if (this.doneT > 0) return;
+    this.geluid.fizzle();
+    this._volgendLevel();
   }
 
   // ---------- tekenen ----------
@@ -179,19 +221,13 @@ export class SpoorSpel {
     for (const [i, pad] of this.paden.entries()) {
       this._tekenPad(ctx, pad, i, nu);
     }
-    // figuurnaam bovenin (bounce'je zolang het figuur net af is)
+    // figuurnaam bovenin (bounce'je zolang het figuur net af is), uit de cache
     const naam = this.figuur.name + (duo ? "  ✦ twee handen!" : "");
+    const spr = tekstSprite(naam, Math.round(this.H * 0.055), this.paden[0].kleur);
     const schaal = this.doneT > 0 ? 1 + Math.sin(Math.min(1, this.sweepT / 0.3) * Math.PI) * 0.18 : 1;
-    ctx.save();
-    ctx.translate(this.W / 2, this.H * 0.15);
-    ctx.scale(schaal, schaal);
-    ctx.font = `800 ${Math.round(this.H * 0.055)}px "Baloo 2"`;
-    ctx.textAlign = "center";
-    ctx.fillStyle = this.paden[0].kleur;
-    ctx.shadowColor = "rgba(0,0,0,0.5)";
-    ctx.shadowBlur = 12;
-    ctx.fillText(naam, 0, 0);
-    ctx.restore();
+    ctx.drawImage(spr, this.W / 2 - spr.width * schaal / 2,
+                  this.H * 0.15 - spr.height * schaal / 2,
+                  spr.width * schaal, spr.height * schaal);
 
     if (duo && this.duoHintT > 2.5 && this.doneT <= 0) {
       this._pulsTekst(ctx, "Gebruik allebei je handen!", nu);
@@ -210,19 +246,25 @@ export class SpoorSpel {
     ctx.beginPath();
     dots.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     ctx.stroke();
-    // het al gevolgde stuk, met gloed
+    // het al gevolgde stuk, met gloed (twee lagen: breed doorschijnend + strak —
+    // véél goedkoper dan shadowBlur, dat elk frame een filter kost)
     if (progress >= 2) {
       ctx.save();
-      ctx.strokeStyle = kleur;
-      ctx.lineWidth = 7;
       ctx.lineJoin = "round";
-      ctx.shadowColor = kleur;
-      ctx.shadowBlur = 14;
+      ctx.lineCap = "round";
       ctx.beginPath();
       for (let i = 0; i < progress; i++) {
         const [x, y] = dots[i];
         i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
       }
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = 0.30;
+      ctx.strokeStyle = kleur;
+      ctx.lineWidth = 18;
+      ctx.stroke();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 7;
       ctx.stroke();
       ctx.restore();
     }
@@ -231,15 +273,18 @@ export class SpoorSpel {
       const kop = this.sweepT / 0.9 * dots.length;
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 10;
-      ctx.shadowColor = "#fff";
-      ctx.shadowBlur = 22;
+      ctx.lineCap = "round";
       ctx.beginPath();
       for (let i = Math.max(0, Math.floor(kop) - 4); i < Math.min(dots.length, Math.ceil(kop)); i++) {
         const [x, y] = dots[i];
         ctx.lineTo(x, y);
       }
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 22;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 9;
       ctx.stroke();
       ctx.restore();
     }
@@ -272,40 +317,31 @@ export class SpoorSpel {
       ctx.stroke();
       tekenSter(ctx, x, y, wacht ? 12 : 16, nu * 1.2, KLEUREN.AMBER);
       if (wacht) {  // wacht op je andere hand
-        ctx.font = `700 ${Math.round(this.H * 0.026)}px "Baloo 2"`;
-        ctx.textAlign = "center";
-        ctx.fillStyle = KLEUREN.AMBER;
-        ctx.fillText("wacht op je andere hand…", x, y - rr - 12);
+        const w = tekstSprite("wacht op je andere hand…", Math.round(this.H * 0.026),
+                              KLEUREN.AMBER, { gewicht: 700, schaduw: false });
+        ctx.drawImage(w, x - w.width / 2, y - rr - 12 - w.height / 2);
       }
     }
   }
 
   _pulsTekst(ctx, tekst, nu) {
     const puls = 0.5 + 0.5 * Math.sin(nu * 2.6);
-    ctx.font = `800 ${Math.round(this.H * 0.045)}px "Baloo 2"`;
-    ctx.textAlign = "center";
+    const spr = tekstSprite(tekst, Math.round(this.H * 0.045), "#fff");
     ctx.globalAlpha = 0.6 + 0.4 * puls;
-    ctx.fillStyle = "#fff";
-    ctx.shadowColor = "rgba(0,0,0,0.6)";
-    ctx.shadowBlur = 10;
-    ctx.fillText(tekst, this.W / 2, this.H * 0.88);
-    ctx.shadowBlur = 0;
+    ctx.drawImage(spr, this.W / 2 - spr.width / 2, this.H * 0.88 - spr.height / 2);
     ctx.globalAlpha = 1;
   }
 
   _tekenLevelBanner(ctx) {
-    const k = Math.min(1, (2.2 - this.levelBannerT) / 0.25);
+    const k = Math.min(1, (2.0 - this.levelBannerT) / 0.25);
     const alpha = this.levelBannerT > 0.5 ? 1 : this.levelBannerT / 0.5;
-    ctx.save();
-    ctx.translate(this.W / 2, this.H * 0.30);
-    ctx.scale(0.6 + 0.4 * k, 0.6 + 0.4 * k);
+    const tekst = this.levelIdx < LEVELS.length
+      ? `Level ${this.levelIdx + 1}!` : "Alle 100 levels gehaald!";
+    const spr = tekstSprite(tekst, Math.round(this.H * 0.09), KLEUREN.AMBER);
+    const s = 0.6 + 0.4 * k;
     ctx.globalAlpha = alpha;
-    ctx.font = `800 ${Math.round(this.H * 0.09)}px "Baloo 2"`;
-    ctx.textAlign = "center";
-    ctx.fillStyle = KLEUREN.AMBER;
-    ctx.shadowColor = "rgba(0,0,0,0.5)";
-    ctx.shadowBlur = 16;
-    ctx.fillText(`Level ${this.level}!`, 0, 0);
-    ctx.restore();
+    ctx.drawImage(spr, this.W / 2 - spr.width * s / 2, this.H * 0.30 - spr.height * s / 2,
+                  spr.width * s, spr.height * s);
+    ctx.globalAlpha = 1;
   }
 }

@@ -8,6 +8,53 @@ export const KLEUREN = {
 export const SPEELKLEUREN = [KLEUREN.TEAL, KLEUREN.CORAL, KLEUREN.LILA,
                              KLEUREN.SKY, KLEUREN.LIME, KLEUREN.ROSE];
 
+// Gloedbolletjes vooraf renderen: createRadialGradient per frame per deeltje
+// was een van de grootste framekosten.
+const _gloedCache = new Map();
+export function gloedSprite(kleur) {
+  let c = _gloedCache.get(kleur);
+  if (!c) {
+    c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const g = c.getContext("2d");
+    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, kleur);
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 64, 64);
+    _gloedCache.set(kleur, c);
+  }
+  return c;
+}
+
+// Tekst met schaduw is duur om elk frame opnieuw te zetten; cache als canvas.
+const _tekstCache = new Map();
+export function tekstSprite(tekst, px, kleur, { gewicht = 800, schaduw = true } = {}) {
+  const sleutel = `${tekst}|${px}|${kleur}|${gewicht}|${schaduw}`;
+  let c = _tekstCache.get(sleutel);
+  if (!c) {
+    if (_tekstCache.size > 80) _tekstCache.clear();  // simpele rem op de cache
+    c = document.createElement("canvas");
+    const g0 = c.getContext("2d");
+    g0.font = `${gewicht} ${px}px "Baloo 2"`;
+    const pad = Math.ceil(px * 0.5);
+    c.width = Math.ceil(g0.measureText(tekst).width) + pad * 2;
+    c.height = Math.ceil(px * 1.5);
+    const g = c.getContext("2d");
+    g.font = `${gewicht} ${px}px "Baloo 2"`;
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    if (schaduw) {
+      g.shadowColor = "rgba(0,0,0,0.55)";
+      g.shadowBlur = px * 0.22;
+    }
+    g.fillStyle = kleur;
+    g.fillText(tekst, c.width / 2, c.height / 2);
+    _tekstCache.set(sleutel, c);
+  }
+  return c;
+}
+
 export function tekenSter(ctx, x, y, r, rot, kleur) {
   ctx.save();
   ctx.translate(x, y);
@@ -103,14 +150,9 @@ export class Effecten {
       const k = Math.max(0, p.leven / p.max);
       if (p.soort === "gloed") {
         ctx.globalCompositeOperation = "lighter";
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 2.2);
-        g.addColorStop(0, p.kleur);
-        g.addColorStop(1, "transparent");
         ctx.globalAlpha = k;
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r * 2.2, 0, Math.PI * 2);
-        ctx.fill();
+        const d = p.r * 4.4;
+        ctx.drawImage(gloedSprite(p.kleur), p.x - d / 2, p.y - d / 2, d, d);
       } else {
         ctx.globalCompositeOperation = "source-over";
         ctx.globalAlpha = Math.min(1, k * 2);

@@ -65,14 +65,19 @@ self.onmessage = async e => {
     const ms = performance.now() - t0;
     self.postMessage({ type: "vingers", vingers, ms, delegate });
     // Sommige drivers geven in een worker een "GPU" die stiekem software is
-    // (100+ ms per frame). Meet de eerste frames en waarschuw de hoofdthread:
-    // die kan dan overschakelen op main-thread-GPU (daar is WebGL wél echt).
+    // of onder last inzakt naar 70-110 ms per frame — soms pas ná de eerste
+    // seconden. Blijf daarom doorlopend meten (glijdend venster) en waarschuw
+    // de hoofdthread zodra de mediaan te hoog wordt: die schakelt dan over op
+    // main-thread-GPU (daar is WebGL wél echt).
     if (!gewisseld && delegate === "GPU") {
       tijden.push(ms);
-      if (tijden.length >= PROEF_N) {
-        gewisseld = true;
-        const mediaan = tijden.sort((a, b) => a - b)[PROEF_N >> 1];
-        if (mediaan > TRAAG_MS) self.postMessage({ type: "traag", mediaan });
+      if (tijden.length > PROEF_N) tijden.shift();
+      if (tijden.length === PROEF_N) {
+        const mediaan = tijden.slice().sort((a, b) => a - b)[PROEF_N >> 1];
+        if (mediaan > TRAAG_MS) {
+          gewisseld = true;
+          self.postMessage({ type: "traag", mediaan });
+        }
       }
     }
     return;

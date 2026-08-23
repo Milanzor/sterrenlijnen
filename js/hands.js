@@ -33,7 +33,7 @@ export class Handen {
     }));
 
     const modelKlaar = new Promise((klaar, fout) => {
-      this.worker = new Worker("js/handworker.js", { type: "module" });
+      this.worker = new Worker("js/handworker.js");  // klassiek, zie handworker.js
       this.worker.onmessage = e => {
         if (e.data.type === "klaar") {
           console.log("sterrenlijnen: handmodel klaar");
@@ -52,6 +52,25 @@ export class Handen {
     await Promise.all([cameraKlaar, modelKlaar]);
   }
 
+  _pakBitmap(v) {
+    // createImageBitmap met resize is het snelst, maar niet elke browser
+    // (Firefox!) kan dat — dan verkleinen we zelf via een OffscreenCanvas.
+    if (!this._geenResize) {
+      return createImageBitmap(v, { resizeWidth: INFER_W, resizeHeight: INFER_H,
+                                    resizeQuality: "low" })
+        .catch(err => {
+          this._geenResize = true;
+          return this._pakBitmap(v);
+        });
+    }
+    if (!this._canvas) {
+      this._canvas = new OffscreenCanvas(INFER_W, INFER_H);
+      this._cctx = this._canvas.getContext("2d");
+    }
+    this._cctx.drawImage(v, 0, 0, INFER_W, INFER_H);
+    return Promise.resolve(this._canvas.transferToImageBitmap());
+  }
+
   update() {
     const v = this.video;
     if (!this.worker || this._bezig || v.readyState < 2
@@ -60,8 +79,7 @@ export class Handen {
     this._bezig = true;
     const ts = Math.max(this._lastTs + 1, Math.round(performance.now()));
     this._lastTs = ts;
-    createImageBitmap(v, { resizeWidth: INFER_W, resizeHeight: INFER_H,
-                           resizeQuality: "low" })
+    this._pakBitmap(v)
       .then(bitmap => this.worker.postMessage({ type: "frame", bitmap, ts }, [bitmap]))
       .catch(() => { this._bezig = false; });
   }

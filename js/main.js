@@ -226,8 +226,10 @@ async function start() {
       await handen.start();
     }
   } catch (e) {
-    foutEl.textContent = "De camera lukt niet: " + (e.message || e) +
-      " — controleer of de browser bij de camera mag.";
+    const msg = String((e && e.message) || e);
+    foutEl.textContent = /NotAllowed|Permission|NotFound|NotReadable|OverconstrainedError/i.test(msg)
+      ? `De camera lukt niet: ${msg} — controleer of de browser bij de camera mag.`
+      : `Het laden lukt niet: ${msg} — probeer de pagina te verversen.`;
     foutEl.hidden = false;
     document.getElementById("start").disabled = false;
     return;

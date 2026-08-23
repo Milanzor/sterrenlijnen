@@ -1,19 +1,28 @@
 // Handdetectie in een aparte thread: de hoofdthread stuurt verkleinde
 // videoframes (ImageBitmap) en krijgt vingertoppen terug. Zo kost de
 // detectie (~10-20 ms per frame) nooit een render-frame.
+//
+// Bewust een KLASSIEKE worker (geen module): MediaPipe's wasm-loader zet
+// zijn ModuleFactory als global en dat werkt alleen via importScripts —
+// als ES-module blijft die module-lokaal ("ModuleFactory not set", Firefox).
 
-import { FilesetResolver, HandLandmarker } from "../vendor/tasks-vision/vision_bundle.mjs";
+importScripts("../vendor/tasks-vision/vision_bundle.js");
 
+const { FilesetResolver, HandLandmarker } = Vision;
 const TIP = 8;
+// Absolute URL's: de bundel resolvet relatieve paden intern tegen zichzelf,
+// niet tegen deze worker — dan krijg je "vendor/vendor/…".
+const WASM_MAP = new URL("../vendor/tasks-vision/wasm", self.location.href).href;
+const MODEL = new URL("../vendor/hand_landmarker.task", self.location.href).href;
 let landmarker = null;
 
 self.onmessage = async e => {
   const d = e.data;
   if (d.type === "init") {
     try {
-      const files = await FilesetResolver.forVisionTasks("../vendor/tasks-vision/wasm");
+      const files = await FilesetResolver.forVisionTasks(WASM_MAP);
       const opts = delegate => ({
-        baseOptions: { modelAssetPath: "../vendor/hand_landmarker.task", delegate },
+        baseOptions: { modelAssetPath: MODEL, delegate },
         runningMode: "VIDEO",
         numHands: 2,
         minHandDetectionConfidence: 0.4,

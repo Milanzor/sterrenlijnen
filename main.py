@@ -89,7 +89,7 @@ class Game:
         self._hud_cache = (None, None)
 
         self.mode: Mode = shell.TitleMode(self)
-        self.sounds.start_ambience()
+        self.sounds.play_music(self.mode.music)
 
     # ---------- sprites & teksten ----------
 
@@ -388,6 +388,7 @@ class Game:
             self._bank_stars()
         self.mode = mode
         self._score_cache = (None, None)
+        self.sounds.play_music(mode.music)
         self.cam.set_tracking(mode.needs)
         if mode.needs == "body":
             self.cursors = []

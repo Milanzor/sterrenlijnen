@@ -87,6 +87,7 @@ class BodyMode(Mode):
 
 class DragonMode(BodyMode):
     label = "Vliegende draak"
+    music = "draak"
 
     GRAVITY = 560.0
     LIFT = 1450.0    # volle klapwiek-energie wint ruim van de zwaartekracht
@@ -279,6 +280,7 @@ class OrbsMode(BodyMode):
     """Toverballen: stap opzij en vang alleen de goede kleur met je handen of hoofd."""
 
     label = "Toverballen"
+    music = "toverballen"
     CATCH_R = 82
     PER_COLOR = 6  # zoveel vangen, dan een nieuwe kleur
 
@@ -386,6 +388,7 @@ class CrystalMode(BodyMode):
     zodra het zoeklicht komt."""
 
     label = "Kristalgrot"
+    music = "kristal"
     DARK, WARN, SWEEP = range(3)
     KEY_R = 95
     HIDE_R = 145     # zo dicht bij een kristal tellen als 'verstopt'
@@ -511,6 +514,7 @@ class BounceMode(BodyMode):
     """Bellen hooghouden: stuit de bel met je handen of hoofd en tel mee tot vier."""
 
     label = "Bellen hooghouden"
+    music = "hooghouden"
     BOUNCES = 4
     TOUCH_R = 60
 
@@ -598,6 +602,7 @@ class SmashMode(BodyMode):
     """Stenen kraken: sla de geodes stuk met je handen — er zit kristal in!"""
 
     label = "Stenen kraken"
+    music = "stenen"
 
     def __init__(self, game):
         super().__init__(game)
@@ -676,6 +681,7 @@ class BridgeMode(BodyMode):
     naar de overkant kunnen lopen."""
 
     label = "Bruggetje"
+    music = "brug"
     WALK = 105.0
     MAX_SLOPE = 0.7   # steiler dan dit (± 35°) durft geen diertje
     GRACE = 0.7       # zo lang blijft een diertje hangen als de brug even wegvalt
@@ -814,6 +820,7 @@ class RunMode(BodyMode):
     armen om uit de plaagbel te ontsnappen."""
 
     label = "Ren en spring!"
+    music = "rennen"
 
     def __init__(self, game):
         super().__init__(game)
@@ -974,6 +981,7 @@ class DanceMode(BodyMode):
     zwaaien of je armen omhoog."""
 
     label = "Dans!"
+    music = "dans"
     SHOW, GO, HIT, MISS = range(4)
 
     CMDS = [

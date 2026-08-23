@@ -60,6 +60,7 @@ class Mode:
     show_score = True
     show_hud = True   # balkje bovenin; uit op het titelscherm en in de intro
     needs = "hands"  # welke tracking deze modus nodig heeft: "hands" of "body"
+    music = "menu"   # welk achtergronddeuntje hier hoort (sleutel in audio._TUNES)
 
     def __init__(self, game):
         self.g = game

@@ -116,6 +116,7 @@ class TitleMode(Mode):
     label = "Welkom!"
     show_score = False
     show_hud = False
+    music = "title"
 
     def __init__(self, game):
         super().__init__(game)
@@ -193,6 +194,7 @@ class IntroMode(Mode):
     label = "Intro"
     show_score = False
     show_hud = False
+    music = "title"
     SCENE_T = 4.6
 
     def __init__(self, game):

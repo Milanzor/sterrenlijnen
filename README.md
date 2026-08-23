@@ -191,5 +191,9 @@ uv run main.py rennen        # ren en spring!
 - Bijna alle sprites en alle geluiden worden procedureel gegenereerd (numpy);
   uitzonderingen: de modellen en het Baloo 2-font in `assets/`, en drie
   CC0-spritereeksen (draak, bij, kip) in `assets/sprites/`.
+- Ook de achtergrondmuziek is procedureel: elk spel heeft zijn eigen vrolijke
+  deuntje (melodie + baslijn + zachte percussie in C-majeur), bij het
+  opstarten gesynthetiseerd tot naadloze loops en gewisseld met een korte
+  fade per spelmodus (`audio._TUNES`, `Mode.music`).
 - Webcam-gotcha's worden bij het opstarten afgehandeld
   (`exposure_dynamic_framerate=0`, geen `CAP_PROP_BUFFERSIZE`).

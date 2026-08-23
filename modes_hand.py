@@ -15,6 +15,7 @@ from entities import (Bubble, Critter, EscapingAlien, FallingStar, FlyingStar,
 
 class BubblesMode(Mode):
     label = "Bellen prikken"
+    music = "bellen"
 
     def __init__(self, game):
         super().__init__(game)
@@ -154,6 +155,7 @@ class BubblesMode(Mode):
 
 class CatchMode(Mode):
     label = "Sterren vangen"
+    music = "vangen"
 
     def __init__(self, game):
         super().__init__(game)
@@ -232,6 +234,7 @@ class CatchMode(Mode):
 
 class AnimalsMode(Mode):
     label = "Naar mama!"
+    music = "mama"
 
     PICKUP_R = 95    # hand-tot-diertje: oppakken gaat vanzelf, geen grijpgebaar nodig
     NEST_R = 155     # diertje-tot-mama: afleveren
@@ -347,6 +350,7 @@ class AnimalsMode(Mode):
 
 class WhackMode(Mode):
     label = "Aliens tikken"
+    music = "aliens"
 
     def __init__(self, game):
         super().__init__(game)
@@ -507,6 +511,7 @@ def _resample(pts, spacing):
 
 class TraceMode(Mode):
     label = "Lijnen volgen"
+    music = "lijnen"
 
     HIT_R = 62       # ruim: de vinger hoeft maar ongeveer over de stip
     AHEAD = 3        # hoeveel stipjes je vooruit mag springen (tegen wild zwaaien)

@@ -337,7 +337,8 @@ export function fitPaths(rawPaths, W, H, spacing, kader = null) {
   const maxY = kader ? kader.maxY : Math.max(...ys);
   const w = (maxX - minX) || 1, h = (maxY - minY) || 1;
   // letters (vast kader) mogen wat groter: hun kader bevat al witruimte
-  const k = Math.min(W * 0.66 / w, H * (kader ? 0.62 : 0.52) / h);
+  // (stok- en staartruimte die de meeste letters niet gebruiken)
+  const k = Math.min(W * 0.66 / w, H * (kader ? 0.72 : 0.52) / h);
   const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
   const naarX = x => (x - cx) * k + W / 2;
   const naarY = y => (y - cy) * k + H * 0.55;

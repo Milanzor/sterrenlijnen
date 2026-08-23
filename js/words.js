@@ -9,7 +9,9 @@ const WOORDLIJST = ["ik", "aap", "kat", "vis", "zon", "bal", "mus", "sok",
                     "pen", "jas", "bus", "koe", "maan", "roos", "boom", "boot",
                     "poes", "huis", "ster", "vlag"];
 
-const GAP = 0.18;  // ruimte tussen twee letters, in letter-eenheden
+const GAP = 0.06;  // ruimte tussen twee letters, in letter-eenheden —
+                   // klein, want de uitstapjes van het schoolschrift
+                   // overbruggen al bijna de hele afstand
 
 const perLetter = new Map(LETTERS.map(l => {
   let minX = Infinity, maxX = -Infinity;

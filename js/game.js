@@ -11,7 +11,7 @@
 // tussen schrijflijnen.
 
 import { LEVELS, fitPaths } from "./figures.js";
-import { LETTERS } from "./letters.js";
+import { LETTERS, BOVENLIJN } from "./letters.js";
 import { WOORDEN } from "./words.js";
 import { KLEUREN, SPEELKLEUREN, KIDSFONT, tekenSter, tekstSprite } from "./fx.js";
 
@@ -88,7 +88,7 @@ export class SpoorSpel {
     this.figuur = spec;
     const spacing = this.H * (spec.kader ? 0.07 : 0.082);
     const { paden: fitted, naarX, naarY, k } = fitPaths(spec.paths, this.W, this.H, spacing, spec.kader);
-    if (spec.kader) {  // schrijflijnen: bovenlijn, x-hoogte, grondlijn
+    if (spec.kader) {  // schrijflijnen: bovenlijn (stokhoogte), x-hoogte, grondlijn
       let minX = Infinity, maxX = -Infinity;
       for (const p of spec.paths) for (const [x] of p) {
         if (x < minX) minX = x;
@@ -99,7 +99,7 @@ export class SpoorSpel {
       this.schrijflijnen = {
         x0: Math.min(naarX(minX) - k * 0.14, this.W / 2 - k * 0.52),
         x1: Math.max(naarX(maxX) + k * 0.14, this.W / 2 + k * 0.52),
-        top: naarY(0.1), xh: naarY(0.5), grond: naarY(1.0), k,
+        top: naarY(BOVENLIJN), xh: naarY(0.5), grond: naarY(1.0), k,
       };
     }
     if (spec.zegNieuw && !zelfde) this.geluid.zeg(spec.zegNieuw);

@@ -58,6 +58,7 @@ class HandCursor:
 class Mode:
     label = ""
     show_score = True
+    show_hud = True   # balkje bovenin; uit op het titelscherm en in de intro
     needs = "hands"  # welke tracking deze modus nodig heeft: "hands" of "body"
 
     def __init__(self, game):

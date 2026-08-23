@@ -14,11 +14,15 @@ PATH = os.path.join(os.path.expanduser("~/.local/share/sterrenbellen"), "profiel
 # kleurnaam + digigamez-kleur; index = profiel-id
 STARS = [("Rode ster", theme.CORAL), ("Groene ster", theme.LIME), ("Blauwe ster", theme.SKY)]
 
+# volumestanden voor Opties: (naam, factor)
+VOLUMES = [("Uit", 0.0), ("Zacht", 0.45), ("Normaal", 1.0)]
+
 
 def _fresh() -> dict:
     return {"profiles": [{"total_stars": 0, "adv_done": 0, "adv_stage": 0}
                          for _ in STARS],
-            "last": 0}
+            "last": 0,
+            "settings": {"volume": 2, "music": True}}
 
 
 def load() -> dict:
@@ -30,6 +34,9 @@ def load() -> dict:
         for p in base["profiles"]:
             for k in ("total_stars", "adv_done", "adv_stage"):
                 p[k] = int(p.get(k, 0))
+        st = base["settings"] = dict(_fresh()["settings"], **(base.get("settings") or {}))
+        st["volume"] = min(max(int(st.get("volume", 2)), 0), len(VOLUMES) - 1)
+        st["music"] = bool(st.get("music", True))
         return base
     except (OSError, ValueError, KeyError, TypeError):
         return _fresh()

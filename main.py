@@ -31,8 +31,8 @@ from base import (BUBBLE_RADII, DARTER_R, FALL_RADII, GIANT_R, GOLDEN_R,
                   COMET_R, MINI_RADII, PASSENGER_R, HandCursor, Mode)
 from camera import CAM_H, CAM_W, CameraTracker
 from entities import Particle, PopRing
-from modes_body import (BounceMode, CrystalMode, DanceMode, DragonMode,
-                        OrbsMode)
+from modes_body import (BounceMode, BridgeMode, CrystalMode, DanceMode,
+                        DragonMode, OrbsMode, RunMode, SmashMode)
 from modes_hand import (AnimalsMode, BubblesMode, CatchMode, TraceMode,
                         WhackMode)
 
@@ -57,7 +57,11 @@ class Game:
         self.cam_oy = (self.H - CAM_H * self.cam_scale) / 2
         self.cover_size = (round(CAM_W * self.cam_scale), round(CAM_H * self.cam_scale))
 
+        # profielen + instellingen eerst, zodat het volume meteen goed staat
+        self.profiles_data = profiles.load()
+        self.profile_idx = self.profiles_data["last"]
         self.sounds = audio.Sounds()
+        self.apply_settings(save=False)
         self._build_sprites()
 
         self.cam = CameraTracker(os.path.join(theme.ASSETS, "hand_landmarker.task"),
@@ -72,11 +76,10 @@ class Game:
         self.flying: list[FlyingStar] = []
         self.aliens: list = []
 
-        # profielen + avontuur-status
-        self.profiles_data = profiles.load()
-        self.profile_idx = self.profiles_data["last"]
+        # avontuur-status
         self.adventure: dict | None = None  # {"i": avontuur, "stage": etappe}
         self.stage_done_t = 0.0
+        self.intro_seen = False  # het intro'tje speelt één keer per opstart
 
         self.score_bump = 0.0
         self.last_hands_time = 0.0
@@ -85,7 +88,7 @@ class Game:
         self._score_cache = (None, None)
         self._hud_cache = (None, None)
 
-        self.mode: Mode = shell.ProfileMenu(self)
+        self.mode: Mode = shell.TitleMode(self)
         self.sounds.start_ambience()
 
     # ---------- sprites & teksten ----------
@@ -116,10 +119,10 @@ class Game:
         self.menu_trace_icon = theme.make_trace_icon(105)
 
         # keuzebellen in drie maten: hoofdmenu, vrij spelen en avontuur
-        self.menu_bubbles_big = {c: theme.make_bubble(120, c)
+        self.menu_bubbles_big = {c: theme.make_bubble(112, c)
                                  for c in set(theme.PLAY_COLORS) | {theme.AMBER}}
-        self.menu_bubbles_small = {c: theme.make_bubble(88, c) for c in theme.PLAY_COLORS}
-        self.menu_bubbles_adv = {c: theme.make_bubble(96, c)
+        self.menu_bubbles_small = {c: theme.make_bubble(78, c) for c in theme.PLAY_COLORS}
+        self.menu_bubbles_adv = {c: theme.make_bubble(88, c)
                                  for c in set(theme.PLAY_COLORS) | {theme.AMBER}}
         self.freeplay_bubble_icon = self.bubble_sprites[(theme.TEAL, 56)]
 
@@ -176,6 +179,33 @@ class Game:
                           for k in ("spring", "klap", "buk", "zwaai", "armen")}
         self.dance_icon = theme.make_cmd_icon("zwaai", 92)
 
+        # Stenen kraken: barst-stadia per kristalkleur en formaat
+        self.rock_sprites = {(c, sz): [theme.make_rock(sz, c, st) for st in range(3)]
+                             for c in (theme.CORAL, theme.SKY, theme.LILA, theme.LIME)
+                             for sz in (175, 230)}
+        self.smash_icon = theme.make_rock(88, theme.CORAL, 2)
+
+        # Bruggetje
+        self.cliff_sprite = theme.make_cliff(250, int(self.H * 0.46))
+        mini = theme.make_cliff(46, 64)
+        self.bridge_icon = pygame.Surface((150, 80), pygame.SRCALPHA)
+        self.bridge_icon.blit(mini, (0, 12))
+        self.bridge_icon.blit(mini, (104, 12))
+        pygame.draw.line(self.bridge_icon, (192, 142, 88), (40, 18), (110, 18), 7)
+
+        # Ren en spring! — de kip kijkt van zichzelf naar links, wij rennen naar rechts
+        self.chicken_frames = [pygame.transform.flip(f, True, False)
+                               for f in theme.load_frames("chicken", 170)]
+        self.run_icon = pygame.transform.smoothscale_by(
+            self.chicken_frames[0], 92 / self.chicken_frames[0].get_height())
+        self.log_sprite = theme.make_log(150, 115)
+        self.branch_sprite = theme.make_branch(310, 165)
+        self.trap_sprite = theme.make_bubble(120, theme.LILA)
+
+        # schil-iconen
+        self.gear_icon = theme.make_gear(105)
+        self.intro_bubble = theme.make_bubble(150, theme.LILA)
+
         # schil: profielen, trofeeën, sloten
         self.profile_star_icons = [theme.make_star(58, color)
                                    for _, color in profiles.STARS]
@@ -194,6 +224,14 @@ class Game:
 
         self.txt_title = theme.font(38, bold=True).render("Sterrenbellen", True, theme.AMBER)
         self.txt_title_big = theme.font(110, bold=True).render("Sterrenbellen", True, theme.AMBER)
+        self.title_glow = pygame.transform.smoothscale(
+            theme.make_glow(220, theme.AMBER, peak=60),
+            (self.txt_title_big.get_width() + 260, 300))
+        self.txt_press_start = theme.font(52, bold=True).render(
+            "Zwaai met je hand om te beginnen!", True, (255, 255, 255))
+        self.txt_options = theme.font(72, bold=True).render("Opties", True, theme.AMBER)
+        self.txt_shake_free = theme.font(64, bold=True).render(
+            "Schud je armen!", True, theme.AMBER)
         self.txt_invite = theme.font(56, bold=True).render("Zwaai met je handen!", True, (255, 255, 255))
         self.txt_invite_body = theme.font(56, bold=True).render(
             "Ga staan en beweeg je armen!", True, (255, 255, 255))
@@ -243,6 +281,13 @@ class Game:
         self.profile_idx = idx
         self.profiles_data["last"] = idx
         profiles.save(self.profiles_data)
+
+    def apply_settings(self, save: bool = True):
+        st = self.profiles_data["settings"]
+        self.sounds.set_master(profiles.VOLUMES[st["volume"]][1])
+        self.sounds.set_music(st["music"])
+        if save:
+            profiles.save(self.profiles_data)
 
     def _bank_stars(self):
         """Verdiende sterren van de aflopende spelronde bij het profiel optellen."""
@@ -316,11 +361,19 @@ class Game:
             self.adventure = None
             self.switch_mode(shell.AdventureMenu(self) if in_adventure
                              else shell.FreePlayMenu(self))
-        elif isinstance(m, (shell.FreePlayMenu, shell.AdventureMenu, shell.TrophyRoom)):
+        elif isinstance(m, (shell.FreePlayMenu, shell.AdventureMenu,
+                            shell.TrophyRoom, shell.OptionsMenu)):
             self.switch_mode(shell.MainMenu(self))
+        elif isinstance(m, shell.ConfirmReset):
+            self.switch_mode(shell.OptionsMenu(self))
         elif isinstance(m, shell.MainMenu):
             self.switch_mode(shell.ProfileMenu(self))
-        else:  # profielkeuze: stoppen
+        elif isinstance(m, shell.IntroMode):  # intro overslaan
+            self.intro_seen = True
+            self.switch_mode(shell.ProfileMenu(self))
+        elif isinstance(m, shell.ProfileMenu):
+            self.switch_mode(shell.TitleMode(self))
+        else:  # titelscherm: stoppen
             return False
         return True
 
@@ -477,6 +530,8 @@ class Game:
                 pygame.draw.circle(s, (255, 255, 255), (int(tip[0]), int(tip[1])), 5)
 
     def _draw_hud(self, s):
+        if not self.mode.show_hud:
+            return
         pygame.draw.line(s, (82, 86, 128), (24, 96), (self.W - 24, 96), 1)
         s.blit(self.txt_title, (36, 20))
         s.blit(self._hud_text(), (40, 58))
@@ -521,7 +576,8 @@ class Game:
 CLI_MODES = {"bellen": BubblesMode, "vangen": CatchMode, "mama": AnimalsMode,
              "aliens": WhackMode, "lijnen": TraceMode, "draak": DragonMode,
              "toverballen": OrbsMode, "kristal": CrystalMode,
-             "hooghouden": BounceMode, "dans": DanceMode}
+             "hooghouden": BounceMode, "dans": DanceMode, "stenen": SmashMode,
+             "brug": BridgeMode, "rennen": RunMode}
 
 if __name__ == "__main__":
     try:

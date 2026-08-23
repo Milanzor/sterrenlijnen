@@ -12,8 +12,9 @@ import pygame
 
 import theme
 from base import Mode
-from entities import (AmbientBee, BounceBubble, Dragon, FallingOrb, FireBreath,
-                      FlyingStar, KeyPickup, Particle, PopRing, ScrollStar,
+from entities import (AmbientBee, BounceBubble, BridgeCritter, Dragon,
+                      FallingOrb, FireBreath, FlyingStar, Geode, KeyPickup,
+                      Particle, PopRing, RunObstacle, Runner, ScrollStar,
                       StormCloud, SwayPlant)
 
 
@@ -588,6 +589,381 @@ class BounceMode(BodyMode):
         for b in self.bubbles:
             digit = g.count_digits[min(b.count, self.BOUNCES)] if b.count > 0 else None
             b.draw(s, digit)
+        self.draw_body_feedback(s)
+        self.draw_invite_if_lost(s)
+        super().draw(s)
+
+
+class SmashMode(BodyMode):
+    """Stenen kraken: sla de geodes stuk met je handen — er zit kristal in!"""
+
+    label = "Stenen kraken"
+
+    def __init__(self, game):
+        super().__init__(game)
+        self.geodes: list[Geode] = []
+        self.spawn_timer = 0.8
+        self.hint = theme.font(42, bold=True).render(
+            "Sla de stenen kapot met je handen!", True, (255, 255, 255))
+
+    def update(self, dt):
+        super().update(dt)
+        g = self.g
+        body, events, alive = self.poll_body()
+        if not alive:
+            return
+        if body.seen:
+            self.track_points(body, dt)
+
+        self.spawn_timer -= dt
+        if self.spawn_timer <= 0 and len(self.geodes) < min(4, 1 + self.level):
+            slots = [g.W * (i + 1) / 6 for i in range(5)]
+            free = [x for x in slots if all(abs(r.x - x) > 190 for r in self.geodes)]
+            if free:
+                big = random.random() < 0.3
+                color = random.choice([theme.CORAL, theme.SKY, theme.LILA, theme.LIME])
+                size = 230 if big else 175
+                self.geodes.append(Geode(
+                    random.choice(free), g.H + 6, g.rock_sprites[(color, size)],
+                    hits=3 if big else 2,
+                    hold=random.uniform(4.5, 6.5) * max(0.6, 1 - 0.06 * (self.level - 1))))
+                self.geodes[-1].color = color
+                self.geodes[-1].worth = 2 if big else 1
+            self.spawn_timer = max(0.6, 1.6 - 0.08 * self.level) * random.uniform(0.7, 1.3)
+
+        pts = self.touch_points() if body.seen else []
+        for r in self.geodes:
+            if r.state in (Geode.SMASHED,) or r.hit_cooldown > 0 or r.k < 0.5:
+                continue
+            half_w = r.sprites[0].get_width() * 0.38
+            top = r.bottom - r.k * r.h * 0.72
+            if any(abs(px - r.x) < half_w and top - 20 < py < r.bottom for px, py in pts):
+                self._hit(r)
+        self.geodes = [r for r in self.geodes if r.update(dt)]
+
+    def _hit(self, r: Geode):
+        g = self.g
+        smashed = r.hit()
+        g.sounds.thud.play()
+        for _ in range(5):  # gruis
+            g.particles.append(Particle(
+                r.cx + random.uniform(-30, 30), r.cy,
+                random.uniform(-160, 160), -random.uniform(60, 240),
+                random.uniform(0.3, 0.6), g.spark, gravity=500))
+        if not smashed:
+            return
+        g.sounds.bloop.play()
+        g.sounds.pop(pygame.time.get_ticks())
+        g.spawn_pop_effects(r.cx, r.cy, 90, r.color)
+        for _ in range(12):  # kristalscherven
+            g.particles.append(Particle(
+                r.cx, r.cy, random.uniform(-340, 340), random.uniform(-460, -80),
+                random.uniform(0.5, 1.0), g.droplets[r.color], gravity=600))
+        for i in range(r.worth):
+            g.flying.append(FlyingStar(r.cx + i * 18, r.cy, g.hud_star_pos, g.star_fly))
+        self.add_stars(r.worth)
+
+    def draw(self, s):
+        for r in self.geodes:
+            r.draw(s)
+        self.draw_body_feedback(s)
+        self.draw_invite_if_lost(s)
+        super().draw(s)
+
+
+class BridgeMode(BodyMode):
+    """Bruggetje: houd je armen als brug tussen de rotsen, zodat de diertjes
+    naar de overkant kunnen lopen."""
+
+    label = "Bruggetje"
+    WALK = 105.0
+    MAX_SLOPE = 0.7   # steiler dan dit (± 35°) durft geen diertje
+    GRACE = 0.7       # zo lang blijft een diertje hangen als de brug even wegvalt
+
+    def __init__(self, game):
+        super().__init__(game)
+        g = game
+        self.cliff_top = g.H * 0.55
+        self.left_edge = g.W * 0.12 + g.cliff_sprite.get_width() * 0.34
+        self.right_edge = g.W * 0.88 - g.cliff_sprite.get_width() * 0.34
+        self.critters: list[BridgeCritter] = []
+        self.no_bridge_t = 0.0
+        self.species_i = random.randrange(3)
+        self.hint = theme.font(42, bold=True).render(
+            "Maak een brug met je armen!", True, (255, 255, 255))
+
+    def _spawn(self):
+        g = self.g
+        self.species_i = (self.species_i + 1) % 3
+        spr, flipped = g.animal_baby[self.species_i]
+        self.critters.append(BridgeCritter(
+            self.species_i, g.W * 0.12, self.cliff_top - spr.get_height() / 2 + 4,
+            spr, flipped))
+
+    def _bridge(self):
+        """→ (lx, ly, rx, ry) of None: de armen-brug, links-naar-rechts gesorteerd."""
+        if len(self.wrist_view) != 2:
+            return None
+        (x1, y1), (x2, y2) = self.wrist_view
+        if x1 > x2:
+            x1, y1, x2, y2 = x2, y2, x1, y1
+        if x2 - x1 < 60 or abs(y2 - y1) / max(1.0, x2 - x1) > self.MAX_SLOPE:
+            return None
+        return (x1, y1, x2, y2)
+
+    @staticmethod
+    def _bridge_y(bridge, x):
+        lx, ly, rx, ry = bridge
+        k = min(1.0, max(0.0, (x - lx) / max(1.0, rx - lx)))
+        return ly + (ry - ly) * k
+
+    def update(self, dt):
+        super().update(dt)
+        g = self.g
+        body, events, alive = self.poll_body()
+        if not alive:
+            return
+        if body.seen:
+            self.track_points(body, dt)
+
+        want = 2 if self.level >= 3 else 1
+        while len(self.critters) < want:
+            self._spawn()
+
+        bridge = self._bridge() if body.seen else None
+        self.no_bridge_t = 0.0 if bridge else self.no_bridge_t + dt
+        now = time.time()
+        for c in list(self.critters):
+            c.update(dt)
+            if c.state == BridgeCritter.WAIT:
+                self._wait(c, bridge, dt, now)
+            elif c.state == BridgeCritter.CROSS:
+                self._cross(c, bridge, dt)
+            elif c.state == BridgeCritter.FALL:
+                c.y += 240 * dt
+                c.x -= 60 * dt
+                if c.y > g.H * 0.94:  # zachte landing, diertje probeert het opnieuw
+                    g.sounds.fizzle.play()
+                    for _ in range(5):
+                        g.particles.append(Particle(
+                            c.x, g.H * 0.94, random.uniform(-70, 70), -random.uniform(40, 120),
+                            random.uniform(0.3, 0.5), g.spark, gravity=300))
+                    self.critters.remove(c)
+
+    def _wait(self, c: BridgeCritter, bridge, dt, now):
+        # naar de rand van de klif kuieren en af en toe piepen
+        if c.x < self.left_edge:
+            c.x += self.WALK * 0.7 * dt
+        elif bridge is not None and bridge[0] < c.x + 90:
+            c.state = BridgeCritter.CROSS
+        elif now >= c.peep_at:
+            self.g.sounds.peep.play()
+            c.peep_at = now + random.uniform(2.5, 5.0)
+
+    def _cross(self, c: BridgeCritter, bridge, dt):
+        g = self.g
+        if bridge is None:
+            c.tremble = 0.4
+            if self.no_bridge_t > self.GRACE:
+                c.state = BridgeCritter.FALL
+            return
+        c.x += self.WALK * dt
+        target_y = self._bridge_y(bridge, c.x) - c.sprite.get_height() * 0.42
+        if c.x > self.right_edge:  # overkant gehaald!
+            target_y = self.cliff_top - c.sprite.get_height() / 2 + 4
+        c.y += (target_y - c.y) * (1 - math.exp(-dt * 10))
+        if c.x > self.right_edge + 40:
+            c.state = BridgeCritter.ARRIVED
+            g.sounds.tada.play()
+            g.sounds.pop(pygame.time.get_ticks())
+            for _ in range(7):
+                g.particles.append(Particle(
+                    c.x + random.uniform(-30, 30), c.y + random.uniform(-20, 10),
+                    random.uniform(-60, 60), -random.uniform(90, 200),
+                    random.uniform(0.7, 1.1), g.heart_sprite, gravity=-90, additive=False))
+            for i in range(2):
+                g.flying.append(FlyingStar(c.x + i * 18, c.y, g.hud_star_pos, g.star_fly))
+            self.add_stars(2)
+            self.critters.remove(c)
+
+    def draw(self, s):
+        g = self.g
+        bridge = self._bridge()
+        if bridge is not None:  # touwbrug tussen je handen, met plankjes
+            lx, ly, rx, ry = bridge
+            pygame.draw.line(s, (150, 104, 62), (lx, ly), (rx, ry), 9)
+            length = math.hypot(rx - lx, ry - ly)
+            nx_, ny_ = -(ry - ly) / length, (rx - lx) / length
+            for i in range(1, int(length / 46)):
+                px = lx + (rx - lx) * i * 46 / length
+                py = ly + (ry - ly) * i * 46 / length
+                pygame.draw.line(s, (192, 142, 88), (px - nx_ * 15, py - ny_ * 15),
+                                 (px + nx_ * 15, py + ny_ * 15), 6)
+        for fx in (0.12, 0.88):
+            spr = g.cliff_sprite
+            s.blit(spr, (g.W * fx - spr.get_width() / 2, self.cliff_top))
+        for c in self.critters:
+            c.draw(s)
+        self.draw_body_feedback(s)
+        self.draw_invite_if_lost(s)
+        super().draw(s)
+
+
+class RunMode(BodyMode):
+    """Ren en spring!: spring over de stammen, buk voor de takken, en schud je
+    armen om uit de plaagbel te ontsnappen."""
+
+    label = "Ren en spring!"
+
+    def __init__(self, game):
+        super().__init__(game)
+        g = game
+        self.ground_y = g.H * 0.88
+        self.runner = Runner(g.chicken_frames, g.W * 0.24, self.ground_y)
+        self.obstacles: list[RunObstacle] = []
+        self.pickups: list[ScrollStar] = []
+        self.spawn_timer = 2.0
+        self.trap = None            # {"x": ..., "wiggle": 0..1} zodra de plaagbel er is
+        self.trap_timer = random.uniform(14, 20)
+        self.tufts = [[random.uniform(0, g.W), random.choice(g.grass_sprites)]
+                      for _ in range(9)]
+        self.hint = theme.font(42, bold=True).render(
+            "Spring over de stammen — buk voor de takken!", True, (255, 255, 255))
+
+    @property
+    def scroll(self):
+        if self.runner.trapped:
+            return 0.0
+        return min(470.0, 295.0 + 26 * (self.level - 1))
+
+    def update(self, dt):
+        super().update(dt)
+        g = self.g
+        body, events, alive = self.poll_body()
+        if not alive:
+            return
+        if body.seen:
+            self.track_points(body, dt)
+            self.runner.ducking = body.crouch > 0.45 and not self.runner.trapped
+            if "jump" in events and self.runner.jump():
+                g.sounds.boing.play()
+        self.runner.update(dt)
+
+        self._spawn(dt)
+        self.obstacles = [o for o in self.obstacles if o.update(dt, self.scroll)]
+        self.pickups = [p for p in self.pickups if p.update(dt, self.scroll)]
+        for t in self.tufts:
+            t[0] -= self.scroll * dt
+            if t[0] < -60:
+                t[0] = g.W + random.uniform(0, 120)
+                t[1] = random.choice(g.grass_sprites)
+        self._collide(body)
+        self._trap_logic(body, dt)
+
+    def _spawn(self, dt):
+        g = self.g
+        self.spawn_timer -= dt
+        if self.spawn_timer > 0:
+            return
+        kind = RunObstacle.LOG if random.random() < 0.55 else RunObstacle.BRANCH
+        if kind == RunObstacle.LOG:
+            ob = RunObstacle(kind, g.W + 140, g.log_sprite, 0)
+            self.pickups.append(ScrollStar(g.W + 140, self.ground_y - 195, 30, g.pickup_star))
+        else:
+            gap_y = self.ground_y - 125
+            ob = RunObstacle(kind, g.W + 180, g.branch_sprite, gap_y)
+            self.pickups.append(ScrollStar(g.W + 180, self.ground_y - 48, 30, g.pickup_star))
+        self.obstacles.append(ob)
+        self.spawn_timer = max(1.4, 2.9 - 0.12 * self.level) * random.uniform(0.85, 1.25)
+
+    def _collide(self, body):
+        g = self.g
+        r = self.runner
+        for p in self.pickups:
+            if p.caught:
+                continue
+            ry = r.y - r.frames[0].get_height() * (0.35 if r.ducking else 0.55)
+            if (p.x - r.x) ** 2 + (p.y - ry) ** 2 < (p.radius + 78) ** 2:
+                p.caught = True
+                g.spawn_pop_effects(p.x, p.y, p.radius + 10, theme.AMBER)
+                g.sounds.pop(pygame.time.get_ticks())
+                g.flying.append(FlyingStar(p.x, p.y, g.hud_star_pos, g.star_fly))
+                self.add_stars(1)
+        for o in self.obstacles:
+            if o.bumped or abs(o.x - r.x) > 60 or r.trapped:
+                continue
+            if o.kind == RunObstacle.LOG:
+                clear = r.y < self.ground_y - o.sprite.get_height() * 0.7
+            else:
+                clear = r.ducking and not r.airborne
+            if not clear:  # botsje: heggetje schudt, kip knippert — en we rennen door
+                o.bumped = True
+                o.shake_t = 0.5
+                r.bump_t = 0.6
+                g.sounds.boing.play()
+
+    def _trap_logic(self, body, dt):
+        g = self.g
+        r = self.runner
+        if self.trap is None:
+            self.trap_timer -= dt
+            if self.trap_timer <= 0:
+                self.trap = {"x": g.W + 130.0, "wiggle": 0.0}
+            return
+        t = self.trap
+        if not r.trapped:
+            t["x"] -= (self.scroll + 130) * dt
+            if t["x"] <= r.x:
+                t["x"] = r.x
+                r.trapped = True
+                g.sounds.bloop.play()
+        else:
+            if body.seen and body.lift > 0.5:
+                t["wiggle"] = min(1.0, t["wiggle"] + dt / 0.7)
+            else:
+                t["wiggle"] = max(0.0, t["wiggle"] - dt * 0.6)
+            if t["wiggle"] >= 1.0:  # bevrijd!
+                r.trapped = False
+                self.trap = None
+                self.trap_timer = random.uniform(16, 26)
+                g.sounds.golden.play()
+                g.spawn_pop_effects(r.x, r.y - 90, 130, theme.LILA)
+                for _ in range(10):
+                    col = random.choice(theme.PLAY_COLORS)
+                    g.particles.append(Particle(
+                        r.x, r.y - 90, random.uniform(-300, 300), random.uniform(-420, -80),
+                        random.uniform(0.6, 1.1), g.confetti[col], gravity=650, additive=False))
+                for i in range(2):
+                    g.flying.append(FlyingStar(r.x + i * 18, r.y - 90,
+                                               g.hud_star_pos, g.star_fly))
+                self.add_stars(2)
+
+    def draw(self, s):
+        g = self.g
+        pygame.draw.line(s, (96, 176, 88), (0, self.ground_y + 6), (g.W, self.ground_y + 6), 5)
+        for x, spr in self.tufts:
+            s.blit(spr, (x - spr.get_width() / 2, self.ground_y - spr.get_height() + 10))
+        for p in self.pickups:
+            p.draw(s)
+        for o in self.obstacles:
+            o.draw(s, self.ground_y)
+        self.runner.draw(s)
+        if self.trap is not None:
+            t = self.trap
+            wob = math.sin(self.t * 9) * 6
+            spr = g.trap_sprite
+            ty = (self.runner.y - 95) if self.runner.trapped else self.ground_y - 120
+            s.blit(spr, (t["x"] - spr.get_width() / 2 + wob, ty - spr.get_height() / 2))
+            if self.runner.trapped:  # schud-je-armen-prompt met voortgangsring
+                icon = g.cmd_icons["zwaai"]
+                ix, iy = g.W / 2, g.H * 0.30
+                s.blit(icon, (ix - icon.get_width() / 2, iy - icon.get_height() / 2))
+                txt = g.txt_shake_free
+                s.blit(txt, (ix - txt.get_width() / 2, iy + 110))
+                rect = pygame.Rect(0, 0, 240, 240)
+                rect.center = (ix, iy)
+                pygame.draw.arc(s, theme.AMBER, rect, math.pi / 2 - t["wiggle"] * math.tau,
+                                math.pi / 2, 8)
         self.draw_body_feedback(s)
         self.draw_invite_if_lost(s)
         super().draw(s)

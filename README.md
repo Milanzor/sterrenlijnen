@@ -1,28 +1,36 @@
 # Sterrenbellen
 
-Camera-spel voor kinderen op Linux (Hyprland) met vijf handspellen en vijf
-lijfspellen, over je eigen spiegelbeeld heen, in een schil naar het voorbeeld
-van de LeapFrog LeapMove. In de handspellen doen alleen handen mee
-(MediaPipe-handdetectie); in de lijfspellen stuurt je hele lijf
+Camera-spel voor kinderen op Linux (Hyprland) met vijf handspellen en acht
+lijfspellen, over je eigen spiegelbeeld heen, als volwaardig spel naar het
+voorbeeld van de LeapFrog LeapMove: titelscherm, intro'tje, profielen,
+avonturen met trofeeën en een optiemenu. In de handspellen doen alleen handen
+mee (MediaPipe-handdetectie); in de lijfspellen stuurt je hele lijf
 (MediaPipe-pose). Geen game-over, alleen sterren verdienen. Alles kies je
 door je hand even op een keuzebel te houden.
 
 ## De schil
 
-- **Profielen**: bij het starten kies je je ster (rood/groen/blauw, zoals de
-  LeapMove-Guardians op kleur). Sterren en trofeeën worden per profiel
-  bewaard in `~/.local/share/sterrenbellen/profielen.json`.
-- **Avontuur**: vijf avonturen (Sterrenweide, Bloemenvallei, Kristalgrot,
-  Wolkenland, Feestplaneet) van elk twee etappes met een sterrendoel; elk
-  voltooid avontuur ontgrendelt het volgende en levert een trofee op, met
-  confettiregen bij de uitreiking.
-- **Vrij spelen**: alle tien spellen los te kiezen.
+- **Titelscherm**: logo met leven eromheen; even zwaaien om te beginnen.
+- **Intro'tje**: drie plaatjes over de alien die zijn sterren kwijtraakte —
+  speelt één keer per opstart, over te slaan met de bel rechtsonder (en
+  terug te kijken via Opties).
+- **Profielen**: kies je ster (rood/groen/blauw, zoals de LeapMove-Guardians
+  op kleur). Sterren en trofeeën worden per profiel bewaard in
+  `~/.local/share/sterrenbellen/profielen.json`.
+- **Avontuur**: zes avonturen (Sterrenweide, Bloemenvallei, Kristalgrot,
+  Wolkenland, Feestplaneet, Rotsberg) van elk twee of drie etappes met een
+  sterrendoel; elk voltooid avontuur ontgrendelt het volgende en levert een
+  trofee op, met confettiregen bij de uitreiking.
+- **Vrij spelen**: alle dertien spellen los te kiezen.
 - **Trofeeën**: de prijzenkast van dit profiel.
+- **Opties**: muziek aan/uit, geluidsvolume (uit/zacht/normaal), intro
+  terugkijken en per profiel opnieuw beginnen (met een weet-je-het-zeker-
+  scherm; wissen vergt extra lang vasthouden).
 
 ## Starten
 
 ```bash
-uv run main.py               # profielkeuze + menu's
+uv run main.py               # titelscherm → intro → profielkeuze → menu's
 uv run main.py bellen        # direct een spel: bellen prikken
 uv run main.py vangen        # sterren vangen
 uv run main.py mama          # naar mama!
@@ -33,6 +41,9 @@ uv run main.py toverballen   # toverballen
 uv run main.py kristal       # kristalgrot
 uv run main.py hooghouden    # bellen hooghouden
 uv run main.py dans          # dans!
+uv run main.py stenen        # stenen kraken
+uv run main.py brug          # bruggetje
+uv run main.py rennen        # ren en spring!
 ```
 
 - **ESC**: één stap terug (uiteindelijk stoppen), **Q**: altijd stoppen
@@ -139,6 +150,30 @@ uv run main.py dans          # dans!
   gelukt = "Bijna!" en gewoon door naar de volgende.
 - Per level wordt het tempo hoger.
 
+## Stenen kraken
+
+- Geodes komen uit de grond omhoog: sla ze kapot met je handen (of je
+  hoofd). Kleine stenen kraken in twee klappen (1 ster), grote in drie
+  (2 sterren); per klap zie je meer barsten en meer kristalglinster.
+- Blijft een steen te lang staan, dan zakt hij gewoon weer de grond in.
+
+## Bruggetje
+
+- Twee rotsen, een ravijn ertussen — en jouw armen zijn de brug! Houd ze
+  gestrekt (niet te steil) en er verschijnt een touwbrug met plankjes
+  tussen je handen waar de diertjes overheen lopen.
+- Valt de brug even weg, dan blijft het diertje trillend even wachten;
+  duurt het te lang, dan dwarrelt het zachtjes omlaag en probeert het
+  gewoon opnieuw. Overkant gehaald = hartjes + 2 sterren.
+
+## Ren en spring!
+
+- De dikke kip (CC0-sprite van bevouliin) rent door het veld: spring over
+  de boomstammen, buk onder de lage takken. Goed getimed = een ster.
+- Af en toe komt er een plaagbel aan die de kip vangt: schud je armen om
+  hem te bevrijden (2 sterren). Botsen tegen een obstakel geeft alleen een
+  "boing" — er gaat nooit iets mis.
+
 ## Techniek
 
 - Python 3.12 (via uv), MediaPipe HandLandmarker + PoseLandmarker, OpenCV,
@@ -154,7 +189,7 @@ uv run main.py dans          # dans!
   spellen), `base.py` (Mode/HandCursor), `profiles.py`, `camera.py`,
   `body.py`, `entities.py`, `theme.py`, `audio.py`.
 - Bijna alle sprites en alle geluiden worden procedureel gegenereerd (numpy);
-  uitzonderingen: de modellen en het Baloo 2-font in `assets/`, en twee
-  CC0-spritereeksen (draak, bij) in `assets/sprites/`.
+  uitzonderingen: de modellen en het Baloo 2-font in `assets/`, en drie
+  CC0-spritereeksen (draak, bij, kip) in `assets/sprites/`.
 - Webcam-gotcha's worden bij het opstarten afgehandeld
   (`exposure_dynamic_framerate=0`, geen `CAP_PROP_BUFFERSIZE`).

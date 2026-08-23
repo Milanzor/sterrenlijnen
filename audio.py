@@ -110,6 +110,14 @@ class Sounds:
         sweep = np.sin(2 * np.pi * np.cumsum(340 * np.exp(-t * 4) + 90) / SR)
         self.whoosh = _to_sound((noise * 0.7 + sweep * 0.5) * _env(n, attack=0.03, release=1.0), 0.4)
 
+        # rotsbonk: doffe lage klap voor Stenen kraken
+        n = int(SR * 0.20)
+        t = np.arange(n) / SR
+        tone = np.sin(2 * np.pi * np.cumsum(95 * np.exp(-t * 13) + 42) / SR)
+        knock = rng.uniform(-1, 1, n)
+        knock = np.convolve(knock, np.ones(90) / 90, mode="same")
+        self.thud = _to_sound((tone * 0.8 + knock * 0.6) * _env(n, attack=0.002, release=0.5), 0.55)
+
         # zachte ruimtepad-loop op de achtergrond
         n = int(SR * 8)
         t = np.arange(n) / SR
@@ -120,11 +128,29 @@ class Sounds:
 
         self._ladder = 0
         self._last_pop_ms = -10_000
+        self._master = 1.0
+        self._music_on = True
+
+    def _all_effects(self) -> list:
+        return self.pops + [self.bloop, self.golden, self.wheee, self.fanfare,
+                            self.boing, self.fizzle, self.peep, self.tada,
+                            self.whoosh, self.thud]
+
+    def set_master(self, k: float) -> None:
+        """Hoofdvolume voor effecten (0.0–1.0), instelbaar via Opties."""
+        self._master = k
+        for snd in self._all_effects():
+            snd.set_volume(k)
+        self.set_music(self._music_on)
+
+    def set_music(self, on: bool) -> None:
+        self._music_on = on
+        pygame.mixer.Channel(0).set_volume(0.5 * self._master if on else 0.0)
 
     def start_ambience(self) -> None:
         ch = pygame.mixer.Channel(0)
         ch.play(self.pad, loops=-1)
-        ch.set_volume(0.5)
+        ch.set_volume(0.5 * self._master if self._music_on else 0.0)
 
     def pop(self, now_ms: int) -> None:
         if now_ms - self._last_pop_ms > 1500:

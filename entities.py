@@ -416,6 +416,176 @@ class FireBreath:
                     special_flags=pygame.BLEND_ADD)
 
 
+class Geode:
+    """Steen vol kristal die uit de grond omhoog komt — sla hem stuk (Stenen kraken)."""
+
+    RISE, HOLD, SINK, SMASHED = range(4)
+
+    def __init__(self, x: float, bottom: float, sprites: list, hits: int, hold: float):
+        self.x, self.bottom = x, bottom
+        self.sprites = sprites      # barst-stadia 0..2
+        self.h = sprites[0].get_height()
+        self.hits_total = hits
+        self.hits_left = hits
+        self.hold = hold
+        self.k = 0.0                # 0 = onder de grond, 1 = helemaal boven
+        self.state = Geode.RISE
+        self.shake_t = 0.0
+        self.hit_cooldown = 0.0
+
+    @property
+    def stage(self) -> int:
+        done = self.hits_total - self.hits_left
+        return min(2, round(done * 2 / max(1, self.hits_total - 1))) if self.hits_total > 1 else done * 2
+
+    @property
+    def cx(self) -> float:
+        return self.x
+
+    @property
+    def cy(self) -> float:
+        return self.bottom - self.k * self.h * 0.72 + self.h * 0.28
+
+    def hit(self) -> bool:
+        """→ True als hij hiermee helemaal kapot is."""
+        self.hits_left -= 1
+        self.shake_t = 0.35
+        self.hit_cooldown = 0.4
+        if self.hits_left <= 0:
+            self.state = Geode.SMASHED
+            return True
+        return False
+
+    def update(self, dt: float) -> bool:
+        self.shake_t = max(0.0, self.shake_t - dt)
+        self.hit_cooldown = max(0.0, self.hit_cooldown - dt)
+        if self.state == Geode.RISE:
+            self.k = min(1.0, self.k + dt / 0.4)
+            if self.k >= 1.0:
+                self.state = Geode.HOLD
+        elif self.state == Geode.HOLD:
+            self.hold -= dt
+            if self.hold <= 0:
+                self.state = Geode.SINK
+        elif self.state == Geode.SINK:
+            self.k -= dt / 0.5
+        else:  # SMASHED: meteen weg (de scherven doet de modus)
+            return False
+        return self.k > 0
+
+    def draw(self, screen: pygame.Surface) -> None:
+        spr = self.sprites[self.stage]
+        shake = math.sin(self.shake_t * 40) * 9 if self.shake_t > 0 else 0
+        screen.blit(spr, (self.x - spr.get_width() / 2 + shake,
+                          self.bottom - self.k * self.h * 0.72))
+
+
+class BridgeCritter:
+    """Diertje dat over de armen-brug wil (Bruggetje); de modus stuurt hem."""
+
+    WAIT, CROSS, FALL, ARRIVED = range(4)
+
+    def __init__(self, species: int, x: float, y: float, sprite, sprite_flipped):
+        self.species = species
+        self.x, self.y = x, y
+        self.sprite, self.sprite_flipped = sprite, sprite_flipped
+        self.state = BridgeCritter.WAIT
+        self.phase = random.uniform(0, math.tau)
+        self.peep_at = time.time() + random.uniform(1.5, 4.0)
+        self.tremble = 0.0
+
+    def update(self, dt: float) -> None:
+        self.phase += dt * 8.0
+        self.tremble = max(0.0, self.tremble - dt)
+
+    def draw(self, screen: pygame.Surface) -> None:
+        hop = abs(math.sin(self.phase)) * 10 if self.state in (BridgeCritter.WAIT,
+                                                               BridgeCritter.CROSS) else 0
+        shake = math.sin(self.tremble * 30) * 5 if self.tremble > 0 else 0
+        img = self.sprite  # loopt naar rechts
+        if self.state == BridgeCritter.FALL:
+            img = pygame.transform.rotozoom(img, math.sin(self.phase) * 16, 1.0)
+        screen.blit(img, (self.x - img.get_width() / 2 + shake,
+                          self.y - img.get_height() / 2 - hop))
+
+
+class Runner:
+    """De rennende kip uit Ren en spring! (CC0-sprite): springt en bukt."""
+
+    def __init__(self, frames: list, x: float, ground_y: float):
+        self.frames = frames
+        self.x = x
+        self.ground_y = ground_y
+        self.y = ground_y
+        self.vy = 0.0
+        self.anim_t = 0.0
+        self.ducking = False
+        self.bump_t = 0.0
+        self.trapped = False
+
+    @property
+    def airborne(self) -> bool:
+        return self.y < self.ground_y - 2
+
+    @property
+    def radius(self) -> float:
+        return self.frames[0].get_height() * (0.24 if self.ducking else 0.34)
+
+    def jump(self) -> bool:
+        if self.airborne or self.trapped:
+            return False
+        self.vy = -820.0
+        return True
+
+    def update(self, dt: float) -> None:
+        self.anim_t += dt * (0 if self.trapped else 11)
+        self.bump_t = max(0.0, self.bump_t - dt)
+        if self.airborne or self.vy < 0:
+            self.vy += 2000 * dt
+            self.y += self.vy * dt
+            if self.y >= self.ground_y:
+                self.y, self.vy = self.ground_y, 0.0
+
+    def draw(self, screen: pygame.Surface) -> None:
+        img = self.frames[int(self.anim_t) % len(self.frames)]
+        if self.ducking and not self.airborne:
+            img = pygame.transform.smoothscale_by(img, (1.15, 0.62))
+        if self.bump_t > 0 and int(self.bump_t * 18) % 2 == 0:
+            img.set_alpha(140)
+        hop = abs(math.sin(self.anim_t * 0.5 * math.pi)) * 7 if not self.airborne and not self.ducking else 0
+        screen.blit(img, (self.x - img.get_width() / 2,
+                          self.y - img.get_height() + 6 - hop))
+        img.set_alpha(255)
+
+
+class RunObstacle:
+    """Obstakel in Ren en spring!: boomstam (springen) of lage tak (bukken)."""
+
+    LOG, BRANCH = range(2)
+
+    def __init__(self, kind: int, x: float, sprite: pygame.Surface, gap_y: float):
+        self.kind = kind
+        self.x = x
+        self.sprite = sprite
+        self.gap_y = gap_y  # tak: onderkant van de tak (daar moet je onderdoor)
+        self.bumped = False
+        self.shake_t = 0.0
+
+    def update(self, dt: float, scroll: float) -> bool:
+        self.x -= scroll * dt
+        self.shake_t = max(0.0, self.shake_t - dt)
+        return self.x > -self.sprite.get_width()
+
+    def draw(self, screen: pygame.Surface, ground_y: float) -> None:
+        shake = math.sin(self.shake_t * 30) * 8 if self.shake_t > 0 else 0
+        if self.kind == RunObstacle.LOG:
+            screen.blit(self.sprite, (self.x - self.sprite.get_width() / 2 + shake,
+                                      ground_y - self.sprite.get_height() + 4))
+        else:
+            screen.blit(self.sprite, (self.x - self.sprite.get_width() / 2 + shake,
+                                      self.gap_y - self.sprite.get_height()))
+
+
 class FallingOrb:
     """Toverbal die naar beneden dwarrelt; alleen de doelkleur wil gevangen worden."""
 

@@ -561,6 +561,112 @@ def _draw_lock(size: int) -> pygame.Surface:
     return s
 
 
+def make_rock(size: int, color, stage: int) -> pygame.Surface:
+    return _supersample(lambda sz: _draw_rock(sz, color, stage), size)
+
+
+def _draw_rock(size: int, color, stage: int) -> pygame.Surface:
+    """Geode voor Stenen kraken: per barst-stadium meer scheuren en meer
+    kristalglinster; stadium 2 staat op knappen."""
+    s = pygame.Surface((size, size), pygame.SRCALPHA)
+    u = size / 100.0
+    gray, dark_g = (150, 152, 172), (108, 110, 132)
+    for cx, cy, r in [(36, 62, 30), (64, 60, 30), (50, 42, 30), (50, 66, 32)]:
+        pygame.draw.circle(s, dark_g, (int(cx * u), int((cy + 3) * u)), int(r * u))
+    for cx, cy, r in [(36, 60, 29), (64, 58, 29), (50, 40, 29), (50, 64, 31)]:
+        pygame.draw.circle(s, gray, (int(cx * u), int(cy * u)), int(r * u))
+    # spikkels
+    for px, py in [(30, 50), (68, 44), (52, 76), (40, 74)]:
+        pygame.draw.circle(s, dark_g, (int(px * u), int(py * u)), int(2.5 * u))
+    ink = (60, 62, 84)
+    light = tuple(min(255, v + 70) for v in color)
+    if stage >= 1:
+        pygame.draw.lines(s, ink, False,
+                          [(50 * u, 26 * u), (44 * u, 44 * u), (54 * u, 58 * u), (46 * u, 74 * u)],
+                          max(2, int(3 * u)))
+        pygame.draw.line(s, light, (49 * u, 50 * u), (52 * u, 54 * u), max(2, int(3 * u)))
+    if stage >= 2:
+        pygame.draw.lines(s, ink, False,
+                          [(24 * u, 58 * u), (40 * u, 56 * u), (58 * u, 66 * u), (76 * u, 60 * u)],
+                          max(2, int(3 * u)))
+        # kristal gluurt door de barsten heen
+        pygame.draw.polygon(s, color, [(46 * u, 48 * u), (56 * u, 52 * u), (52 * u, 64 * u),
+                                       (42 * u, 60 * u)])
+        pygame.draw.polygon(s, light, [(48 * u, 50 * u), (53 * u, 52 * u), (50 * u, 58 * u)])
+    return s
+
+
+def make_cliff(w: int, h: int) -> pygame.Surface:
+    """Rotsplateau voor Bruggetje: de kliffen waar de diertjes op wachten."""
+    ss = 3
+    sw, sh = w * ss, h * ss
+    s = pygame.Surface((sw, sh), pygame.SRCALPHA)
+    rock, dark, grass = (146, 122, 108), (110, 90, 80), (128, 200, 96)
+    pygame.draw.rect(s, dark, pygame.Rect(0, sh * 0.06, sw, sh * 0.94),
+                     border_top_left_radius=int(sw * 0.12), border_top_right_radius=int(sw * 0.12))
+    pygame.draw.rect(s, rock, pygame.Rect(sw * 0.05, sh * 0.10, sw * 0.90, sh * 0.90))
+    for fy in (0.30, 0.55, 0.78):  # richels
+        pygame.draw.line(s, dark, (sw * 0.12, sh * fy), (sw * 0.60, sh * fy), 2 * ss)
+    pygame.draw.rect(s, grass, pygame.Rect(0, 0, sw, sh * 0.09),
+                     border_radius=int(sh * 0.04))
+    for i in range(5):  # graspiekjes over de rand
+        x = sw * (0.08 + 0.20 * i)
+        pygame.draw.polygon(s, grass, [(x, sh * 0.08), (x + 5 * ss, sh * 0.16), (x + 10 * ss, sh * 0.08)])
+    return pygame.transform.smoothscale(s, (w, h))
+
+
+def make_log(w: int, h: int) -> pygame.Surface:
+    """Boomstam-obstakel (overheen springen) voor Ren en spring!."""
+    ss = 3
+    sw, sh = w * ss, h * ss
+    s = pygame.Surface((sw, sh), pygame.SRCALPHA)
+    bark, dark, face = (172, 124, 76), (130, 90, 52), (222, 186, 134)
+    pygame.draw.rect(s, dark, pygame.Rect(0, sh * 0.06, sw, sh * 0.94), border_radius=int(sh * 0.3))
+    pygame.draw.rect(s, bark, pygame.Rect(0, 0, sw, sh * 0.90), border_radius=int(sh * 0.3))
+    pygame.draw.ellipse(s, face, pygame.Rect(sw * 0.80, sh * 0.08, sw * 0.18, sh * 0.74))
+    pygame.draw.ellipse(s, dark, pygame.Rect(sw * 0.855, sh * 0.28, sw * 0.07, sh * 0.34), 2 * ss)
+    for fx in (0.12, 0.32, 0.52):  # barststrepen in de bast
+        pygame.draw.line(s, dark, (sw * fx, sh * 0.18), (sw * (fx + 0.10), sh * 0.72), 2 * ss)
+    return pygame.transform.smoothscale(s, (w, h))
+
+
+def make_branch(w: int, h: int) -> pygame.Surface:
+    """Lage tak met blaadjes (onderdoor bukken) voor Ren en spring!."""
+    ss = 3
+    sw, sh = w * ss, h * ss
+    s = pygame.Surface((sw, sh), pygame.SRCALPHA)
+    bark, leaf, leaf2 = (150, 108, 66), (110, 190, 90), (86, 162, 74)
+    pygame.draw.rect(s, bark, pygame.Rect(0, sh * 0.55, sw, sh * 0.26), border_radius=int(sh * 0.13))
+    for i in range(6):
+        x = sw * (0.05 + 0.16 * i)
+        col = leaf if i % 2 == 0 else leaf2
+        pygame.draw.ellipse(s, col, pygame.Rect(x, sh * (0.10 + (i % 3) * 0.10),
+                                                sw * 0.16, sh * 0.42))
+    return pygame.transform.smoothscale(s, (w, h))
+
+
+def make_gear(size: int, color=(205, 209, 238)) -> pygame.Surface:
+    return _supersample(lambda sz: _draw_gear(sz, color), size)
+
+
+def _draw_gear(size: int, color) -> pygame.Surface:
+    """Tandwieltje voor het Opties-menu."""
+    s = pygame.Surface((size, size), pygame.SRCALPHA)
+    c = size / 2
+    for i in range(8):
+        ang = i * math.tau / 8
+        tooth = pygame.Rect(0, 0, size * 0.16, size * 0.30)
+        tooth_s = pygame.Surface(tooth.size, pygame.SRCALPHA)
+        pygame.draw.rect(tooth_s, color, tooth_s.get_rect(), border_radius=int(size * 0.04))
+        rot = pygame.transform.rotozoom(tooth_s, -math.degrees(ang), 1.0)
+        px = c + math.cos(ang - math.pi / 2) * size * 0.34
+        py = c + math.sin(ang - math.pi / 2) * size * 0.34
+        s.blit(rot, rot.get_rect(center=(px, py)))
+    pygame.draw.circle(s, color, (int(c), int(c)), int(size * 0.30))
+    pygame.draw.circle(s, (0, 0, 0, 0), (int(c), int(c)), int(size * 0.13))
+    return s
+
+
 def make_cmd_icon(kind: str, size: int, color=AMBER) -> pygame.Surface:
     return _supersample(lambda sz: _draw_cmd_icon(kind, sz, color), size)
 

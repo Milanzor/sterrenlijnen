@@ -7,3 +7,5 @@ gedownload via OpenGameArt:
   https://opengameart.org/content/flappy-dragon-sprite-sheets
 - `bee/` — "Colorful Bee"
   https://opengameart.org/content/colorful-bee
+- `chicken/` — "Fat Bird Sprites"
+  https://opengameart.org/content/fat-bird-sprites

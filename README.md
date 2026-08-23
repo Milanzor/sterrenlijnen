@@ -7,7 +7,7 @@ er wordt niets opgenomen of verstuurd.
 
 ## Spelen
 
-**Online:** https://milanzor.github.io/sterrenbellen/ — elke push naar
+**Online:** https://milanzor.github.io/sterrenlijnen/ — elke push naar
 `main` deployt automatisch naar GitHub Pages (zie
 `.github/workflows/deploy.yml`).
 

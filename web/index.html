@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Sterrenlijnen</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>⭐</text></svg>">
+</head>
+<body>
+  <video id="cam" playsinline muted></video>
+  <canvas id="scherm"></canvas>
+
+  <div id="overlay">
+    <h1>Sterrenlijnen</h1>
+    <p class="uitleg">Volg de stipjes met je wijsvinger — soms met twee handen tegelijk!</p>
+    <button id="start">▶&nbsp; Spelen</button>
+    <p class="klein">De camera blijft in je browser; er wordt niets opgenomen of verstuurd.</p>
+    <p id="foutmelding" hidden></p>
+  </div>
+
+  <div id="knoppen" hidden>
+    <button id="geluid" title="Geluid aan/uit">🔊</button>
+    <button id="volscherm" title="Volledig scherm">⛶</button>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

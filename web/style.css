@@ -1,0 +1,84 @@
+@font-face {
+  font-family: "Baloo 2";
+  src: url("assets/Baloo2.ttf") format("truetype");
+  font-weight: 400 800;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: #05070f;
+  font-family: "Baloo 2", system-ui, sans-serif;
+  color: #fff;
+}
+
+#cam { display: none; }
+
+#scherm {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  touch-action: none;
+}
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  background: radial-gradient(ellipse at 50% 35%, #171633 0%, #05070f 70%);
+  text-align: center;
+  padding: 24px;
+  z-index: 10;
+}
+
+#overlay h1 {
+  font-size: clamp(52px, 9vw, 120px);
+  font-weight: 800;
+  color: #ffc24a;
+  text-shadow: 0 0 40px rgba(255, 194, 74, .45);
+}
+
+#overlay .uitleg { font-size: clamp(18px, 2.6vw, 30px); color: #dce0ff; max-width: 26em; }
+#overlay .klein  { font-size: 14px; color: #8b90b8; }
+
+#start {
+  font: 800 clamp(24px, 3.2vw, 38px) "Baloo 2", sans-serif;
+  color: #1a1530;
+  background: #ffc24a;
+  border: none;
+  border-radius: 999px;
+  padding: .55em 1.6em;
+  cursor: pointer;
+  box-shadow: 0 0 34px rgba(255, 194, 74, .5);
+  transition: transform .15s;
+}
+#start:hover { transform: scale(1.06); }
+
+#foutmelding { color: #ff8a8a; font-size: 18px; max-width: 34em; }
+
+#knoppen {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  gap: 10px;
+  z-index: 5;
+}
+#knoppen button {
+  font-size: 22px;
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(23, 22, 51, .65);
+  color: #fff;
+  cursor: pointer;
+}
+#knoppen button:hover { background: rgba(43, 42, 81, .8); }

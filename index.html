@@ -14,7 +14,10 @@
   <div id="overlay">
     <h1>Sterrenlijnen</h1>
     <p class="uitleg">Volg de stipjes met je wijsvinger — soms met twee handen tegelijk!</p>
-    <button id="start">▶&nbsp; Spelen</button>
+    <div class="knopRij">
+      <button id="start" class="startknop">⭐&nbsp; Level modus</button>
+      <button id="startLetters" class="startknop letters">🔤&nbsp; Letter leer modus</button>
+    </div>
     <p class="klein">De camera blijft in je browser; er wordt niets opgenomen of verstuurd.</p>
     <p id="foutmelding" hidden></p>
   </div>
@@ -23,6 +26,7 @@
     <button id="geluid" title="Geluid aan/uit">🔊</button>
     <button id="volscherm" title="Volledig scherm">⛶</button>
     <button id="overslaan" title="Level overslaan">⏭</button>
+    <button id="wissel" title="Wissel van modus">🔤</button>
   </div>
 
   <script type="module" src="js/main.js"></script>

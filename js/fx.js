@@ -8,6 +8,11 @@ export const KLEUREN = {
 export const SPEELKLEUREN = [KLEUREN.TEAL, KLEUREN.CORAL, KLEUREN.LILA,
                              KLEUREN.SKY, KLEUREN.LIME, KLEUREN.ROSE];
 
+// Kinderletterfont: Kermit (Underware/Microsoft) is niet vrij te bundelen,
+// maar staat op veel machines via Microsoft 365 — wie hem heeft ziet hem,
+// anders valt het terug op onze eigen Baloo 2.
+export const KIDSFONT = '"Kermit", "Baloo 2", sans-serif';
+
 // Gloedbolletjes vooraf renderen: createRadialGradient per frame per deeltje
 // was een van de grootste framekosten.
 const _gloedCache = new Map();
@@ -29,19 +34,20 @@ export function gloedSprite(kleur) {
 
 // Tekst met schaduw is duur om elk frame opnieuw te zetten; cache als canvas.
 const _tekstCache = new Map();
-export function tekstSprite(tekst, px, kleur, { gewicht = 800, schaduw = true } = {}) {
-  const sleutel = `${tekst}|${px}|${kleur}|${gewicht}|${schaduw}`;
+export function tekstSprite(tekst, px, kleur,
+                            { gewicht = 800, schaduw = true, font = '"Baloo 2"' } = {}) {
+  const sleutel = `${tekst}|${px}|${kleur}|${gewicht}|${schaduw}|${font}`;
   let c = _tekstCache.get(sleutel);
   if (!c) {
     if (_tekstCache.size > 80) _tekstCache.clear();  // simpele rem op de cache
     c = document.createElement("canvas");
     const g0 = c.getContext("2d");
-    g0.font = `${gewicht} ${px}px "Baloo 2"`;
+    g0.font = `${gewicht} ${px}px ${font}`;
     const pad = Math.ceil(px * 0.5);
     c.width = Math.ceil(g0.measureText(tekst).width) + pad * 2;
     c.height = Math.ceil(px * 1.5);
     const g = c.getContext("2d");
-    g.font = `${gewicht} ${px}px "Baloo 2"`;
+    g.font = `${gewicht} ${px}px ${font}`;
     g.textAlign = "center";
     g.textBaseline = "middle";
     if (schaduw) {

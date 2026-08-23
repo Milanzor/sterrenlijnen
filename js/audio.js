@@ -115,6 +115,18 @@ export class Geluid {
     this._toon(392, 0.12, { gain: 0.12 });
   }
 
+  zeg(tekst) {  // Letter leer modus: spreek de letter uit (Nederlands)
+    if (!this.aan || typeof speechSynthesis === "undefined") return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(tekst);
+      u.lang = "nl-NL";
+      u.rate = 0.8;
+      u.pitch = 1.1;
+      speechSynthesis.speak(u);
+    } catch { /* geen stem beschikbaar: dan alleen de nootjes */ }
+  }
+
   // ---------- muziekje ----------
   // Eén vrolijk loopje (tokkelmelodie + bas), gepland met een lookahead-timer.
 

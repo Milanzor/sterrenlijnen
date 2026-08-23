@@ -48,18 +48,32 @@ html, body {
 #overlay .uitleg { font-size: clamp(18px, 2.6vw, 30px); color: #dce0ff; max-width: 26em; }
 #overlay .klein  { font-size: 14px; color: #8b90b8; }
 
-#start {
-  font: 800 clamp(24px, 3.2vw, 38px) "Baloo 2", sans-serif;
+.knopRij {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.startknop {
+  font: 800 clamp(22px, 2.8vw, 34px) "Baloo 2", sans-serif;
   color: #1a1530;
   background: #ffc24a;
   border: none;
   border-radius: 999px;
-  padding: .55em 1.6em;
+  padding: .55em 1.3em;
   cursor: pointer;
   box-shadow: 0 0 34px rgba(255, 194, 74, .5);
   transition: transform .15s;
 }
-#start:hover { transform: scale(1.06); }
+.startknop:hover { transform: scale(1.06); }
+
+/* Letter leer modus: in het kinderfont Kermit (Microsoft 365) als dat er is */
+.startknop.letters {
+  font-family: "Kermit", "Baloo 2", sans-serif;
+  background: #5fe3c4;
+  box-shadow: 0 0 34px rgba(95, 227, 196, .5);
+}
 
 #foutmelding { color: #ff8a8a; font-size: 18px; max-width: 34em; }
 

@@ -7,6 +7,7 @@
 import { Handen } from "./hands.js";
 import { SpoorSpel } from "./game.js";
 import { LEVELS } from "./figures.js";
+import { LETTERS } from "./letters.js";
 import { Effecten, Spoor, KLEUREN, tekenSter, gloedSprite, tekstSprite,
          maakSterrenhemel, maakVignet } from "./fx.js";
 import { Geluid } from "./audio.js";
@@ -96,9 +97,12 @@ function demoVingers(nu) {
   if (!spel) return [];
   const doelen = [];
   const paden = spel.paden;
-  const n = spel.figuur.duo ? 2 : 1;
-  for (let i = 0; i < n; i++) {
-    const pad = paden[Math.min(i, paden.length - 1)];
+  // duo: één spookvinger per lijn; strokes (letters): de haal die aan de
+  // beurt is; anders gewoon het ene pad
+  const idxs = spel.figuur.duo ? [0, 1]
+             : spel.figuur.strokes ? [spel.actieveHaal] : [0];
+  for (const [i, pi] of idxs.entries()) {
+    const pad = paden[Math.min(pi, paden.length - 1)];
     const idx = Math.min(pad.progress, pad.dots.length - 1);
     const [dx, dy] = pad.dots[idx];
     doelen.push({ x: dx + Math.sin(nu * 3 + i * 7) * 6, y: dy + Math.cos(nu * 2.6 + i) * 6 });
@@ -220,22 +224,31 @@ function tekenHud(nu) {
 
 let startTijd = 0;
 
-async function start() {
-  document.getElementById("start").disabled = true;
+async function start(modus = "level") {
+  for (const b of document.querySelectorAll(".startknop")) b.disabled = true;
   try {  // font eerst, anders tekent het canvas de eerste tellen systeemfont
     await document.fonts.load('800 40px "Baloo 2"');
+    if (modus === "letter") await document.fonts.load("700 40px Kermit");
   } catch { /* systeemfont is dan de fallback */ }
   geluid = new Geluid();
   geluid.init();
   fx = new Effecten();
   const params = new URLSearchParams(location.search);
-  let startLevel = null;  // ?level=N springt naar dat level, ?duo naar het eerste duo
+  const lijst = modus === "letter" ? LETTERS : LEVELS;
+  let startLevel = null;  // ?level=N springt naar dat level, ?duo naar het
+                          // eerste duo, ?letter=b naar die letter
   if (params.has("level")) {
-    startLevel = Math.max(0, Math.min(LEVELS.length - 1, (parseInt(params.get("level")) || 1) - 1));
-  } else if (params.has("duo")) {
+    startLevel = Math.max(0, Math.min(lijst.length - 1, (parseInt(params.get("level")) || 1) - 1));
+  } else if (modus === "letter" && params.has("letter")) {
+    const i = LETTERS.findIndex(f => f.letter === (params.get("letter") || "").toLowerCase());
+    if (i >= 0) startLevel = i;
+  } else if (modus === "level" && params.has("duo")) {
     startLevel = LEVELS.findIndex(f => f.duo);
   }
-  spel = new SpoorSpel(W, H, fx, geluid, { startLevel });
+  spel = new SpoorSpel(W, H, fx, geluid, { startLevel, modus });
+  const wissel = document.getElementById("wissel");
+  wissel.textContent = modus === "letter" ? "⭐" : "🔤";
+  wissel.title = modus === "letter" ? "Naar de Level modus" : "Naar de Letter leer modus";
   try {
     if (!DEMO) {
       const p2 = new URLSearchParams(location.search);
@@ -249,7 +262,7 @@ async function start() {
       ? `De camera lukt niet: ${msg} — controleer of de browser bij de camera mag.`
       : `Het laden lukt niet: ${msg} — probeer de pagina te verversen.`;
     foutEl.hidden = false;
-    document.getElementById("start").disabled = false;
+    for (const b of document.querySelectorAll(".startknop")) b.disabled = false;
     return;
   }
   overlay.remove();
@@ -260,7 +273,17 @@ async function start() {
   requestAnimationFrame(lus);
 }
 
-document.getElementById("start").addEventListener("click", start);
+document.getElementById("start").addEventListener("click", () => start("level"));
+document.getElementById("startLetters").addEventListener("click", () => start("letter"));
+document.getElementById("wissel").addEventListener("click", () => {
+  // herladen in de andere modus; auto=1 zodat je niet opnieuw hoeft te klikken
+  const p = new URLSearchParams(location.search);
+  spel?.modus === "letter" ? p.delete("letters") : p.set("letters", "1");
+  p.delete("level");
+  p.delete("letter");
+  if (!DEMO) p.set("auto", "1");
+  location.search = p.toString();
+});
 document.getElementById("geluid").addEventListener("click", e => {
   geluid.zetAan(!geluid.aan);
   e.target.textContent = geluid.aan ? "🔊" : "🔇";
@@ -271,5 +294,7 @@ document.getElementById("volscherm").addEventListener("click", () => {
 });
 document.getElementById("overslaan").addEventListener("click", () => spel?.slaOver());
 // ?demo=1: geen camera, spookvingers spelen vanzelf; ?auto=1: meteen starten
-// mét camera (voor tests met een nepcamera in headless browsers)
-if (DEMO || new URLSearchParams(location.search).has("auto")) start();
+// mét camera (voor tests met een nepcamera in headless browsers);
+// ?letters=1 kiest daarbij de Letter leer modus
+const _p = new URLSearchParams(location.search);
+if (DEMO || _p.has("auto")) start(_p.has("letters") ? "letter" : "level");

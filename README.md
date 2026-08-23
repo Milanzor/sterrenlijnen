@@ -24,7 +24,24 @@ Elke statische webserver werkt. De camera vereist een veilige context:
 - `?demo=1` — demostand: geen camera, twee spookvingers spelen vanzelf
   (ook handig als je even wilt zien hoe het hoort).
 - `?demo=1&duo=1` — demostand die meteen met een duo-figuur begint.
-- Knoppen linksboven: geluid aan/uit en volledig scherm.
+- `?letters=1` — start (met `auto`/`demo`) in de Letter leer modus;
+  `?letter=b` springt naar die letter.
+- Knoppen linksboven: geluid aan/uit, volledig scherm, level overslaan en
+  wisselen tussen de modi.
+
+## Twee modi
+
+- **Level modus** — de 100 figuren hieronder, oplopend in moeilijkheid.
+- **Letter leer modus** — alle 26 kleine drukletters (a t/m z) natrekken,
+  haal voor haal in de échte schrijfvolgorde en -richting, zoals op school:
+  cijfertjes markeren waar elke haal begint, en je trekt ze ná elkaar.
+  De letters staan tussen schrijflijnen (grondlijn, x-hoogte, bovenlijn) en
+  naast de schrijfregel staat de letter als voorbeeld in het kinderfont
+  **Kermit** (Underware/Microsoft 365). Kermit is een commercieel font en
+  kan dus niet meegebundeld worden; wie het via Microsoft 365 op zijn
+  machine heeft ziet het vanzelf, anders valt het terug op Baloo 2. Bij elke
+  letter wordt de naam ook uitgesproken (SpeechSynthesis, Nederlands).
+  Voortgang wordt apart van de Level modus onthouden.
 
 ## Het spel
 

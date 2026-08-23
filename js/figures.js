@@ -325,15 +325,23 @@ export function resample(pts, spacing) {
   return out;
 }
 
-// Past één of twee paden samen in een kader op het scherm (verhoudingen intact).
-export function fitPaths(rawPaths, W, H, spacing) {
+// Past de paden samen in een kader op het scherm (verhoudingen intact).
+// Optioneel `kader` legt de verticale maat vast (letters: vaste schrijflijnen,
+// zodat een c niet even groot wordt als een k). Geeft naast de paden ook de
+// transformatie terug, zodat de schrijflijnen meegetekend kunnen worden.
+export function fitPaths(rawPaths, W, H, spacing, kader = null) {
   let xs = [], ys = [];
   for (const p of rawPaths) for (const [x, y] of p) { xs.push(x); ys.push(y); }
   const minX = Math.min(...xs), maxX = Math.max(...xs);
-  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const minY = kader ? kader.minY : Math.min(...ys);
+  const maxY = kader ? kader.maxY : Math.max(...ys);
   const w = (maxX - minX) || 1, h = (maxY - minY) || 1;
-  const k = Math.min(W * 0.66 / w, H * 0.52 / h);
+  // letters (vast kader) mogen wat groter: hun kader bevat al witruimte
+  const k = Math.min(W * 0.66 / w, H * (kader ? 0.62 : 0.52) / h);
   const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-  return rawPaths.map(p => resample(
-    p.map(([x, y]) => [(x - cx) * k + W / 2, (y - cy) * k + H * 0.55]), spacing));
+  const naarX = x => (x - cx) * k + W / 2;
+  const naarY = y => (y - cy) * k + H * 0.55;
+  return { paden: rawPaths.map(p => resample(
+             p.map(([x, y]) => [naarX(x), naarY(y)]), spacing)),
+           naarX, naarY, k };
 }

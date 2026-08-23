@@ -1,13 +1,14 @@
-"""Camera + handtracking.
+"""Camera + hand- óf lijftracking.
 
 Twee threads, losgekoppeld zodat het beeld op volle 30 fps blijft terwijl de
-handdetectie (~30 ms per frame) in zijn eigen tempo draait:
+detectie (~30 ms per frame) in zijn eigen tempo draait:
 
 - capture-thread: leest MJPG 1280x720@30 van de webcam, spiegelt, en legt het
   nieuwste RGB-frame klaar.
 - inference-thread: pakt telkens het nieuwste frame, verkleint naar 480x270 en
-  draait MediaPipe HandLandmarker (alleen handen — lijf en hoofd doen dus per
-  definitie niet mee).
+  draait MediaPipe. Per spelmodus draait er precies één model: HandLandmarker
+  (handspellen, menu) of PoseLandmarker (lijfspellen zoals Vliegende draak) —
+  allebei tegelijk zou de detectie onder de 30 Hz drukken.
 
 Gotcha's van deze webcam (zie geheugen): exposure_dynamic_framerate halveert
 naar 15 fps → uitzetten; CAP_PROP_BUFFERSIZE=1 halveert óók → niet zetten.
@@ -20,6 +21,8 @@ from dataclasses import dataclass, field
 
 import cv2
 import numpy as np
+
+from body import Body, BodyTracker
 
 CAM_W, CAM_H = 1280, 720
 INFER_W, INFER_H = 480, 270
@@ -37,8 +40,9 @@ class Hand:
     t: float = field(default_factory=time.time)
 
 
-class CameraHands:
-    def __init__(self, model_path: str, device: str = "/dev/video0") -> None:
+class CameraTracker:
+    def __init__(self, model_path: str, pose_model_path: str | None = None,
+                 device: str = "/dev/video0") -> None:
         self._fix_camera_controls(device)
         self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
         self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
@@ -62,11 +66,24 @@ class CameraHands:
                 min_tracking_confidence=0.4,
             )
         )
+        self.pose_landmarker = None
+        if pose_model_path:
+            self.pose_landmarker = vision.PoseLandmarker.create_from_options(
+                vision.PoseLandmarkerOptions(
+                    base_options=mpp.BaseOptions(model_asset_path=pose_model_path),
+                    running_mode=vision.RunningMode.VIDEO,
+                    num_poses=1,  # het grootste kind in beeld stuurt
+                    min_pose_detection_confidence=0.4,
+                    min_tracking_confidence=0.4,
+                )
+            )
+        self.body_tracker = BodyTracker()
 
         self._lock = threading.Lock()
         self._frame: np.ndarray | None = None  # RGB, gespiegeld, CAM_W x CAM_H
         self._frame_id = 0
         self._hands: list[Hand] = []
+        self._track = "hands"  # "hands" of "body", per spelmodus
         self._running = True
         self.capture_fps = 0.0
         self.infer_fps = 0.0
@@ -118,6 +135,19 @@ class CameraHands:
             last_id = fid
             small = cv2.resize(frame, (INFER_W, INFER_H), interpolation=cv2.INTER_AREA)
             img = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=np.ascontiguousarray(small))
+            if self._track == "body" and self.pose_landmarker is not None:
+                try:
+                    res = self.pose_landmarker.detect_for_video(img, int(time.time() * 1000))
+                except Exception:
+                    continue
+                if res.pose_landmarks:
+                    self.body_tracker.feed(res.pose_landmarks[0])
+                n += 1
+                if n == 20:
+                    now = time.time()
+                    self.infer_fps = 20 / (now - t0)
+                    n, t0 = 0, now
+                continue
             try:
                 res = self.landmarker.detect_for_video(img, int(time.time() * 1000))
             except Exception:
@@ -150,13 +180,28 @@ class CameraHands:
         with self._lock:
             return list(self._hands)
 
+    def set_tracking(self, kind: str) -> None:
+        """"hands" of "body" — wisselt welk model de inference-thread draait."""
+        with self._lock:
+            self._track = kind if self.pose_landmarker is not None else "hands"
+            if kind == "body":
+                self._hands = []
+
+    def get_body(self) -> Body:
+        return self.body_tracker.get()
+
+    def poll_body_events(self) -> list[str]:
+        return self.body_tracker.poll_events()
+
     def stop(self) -> None:
         # netjes afbouwen: eerst de threads laten stoppen, dan het model
         # sluiten — anders kan MediaPipe met een SIGABRT vallen bij exit
         self._running = False
         for t in self._threads:
             t.join(timeout=1.0)
-        try:
-            self.landmarker.close()
-        except Exception:
-            pass
+        for lm in (self.landmarker, self.pose_landmarker):
+            try:
+                if lm is not None:
+                    lm.close()
+            except Exception:
+                pass

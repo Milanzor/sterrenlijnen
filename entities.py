@@ -333,6 +333,283 @@ class PeekAlien:
         screen.blit(self.sprite, (self.x - self.sprite.get_width() / 2 + wob, self.top))
 
 
+class Dragon:
+    """De draak uit Vliegende draak: klapwiekt mee met het kind (CC0-sprite).
+
+    De physics (lift, zwaartekracht) zit in de spelmodus; hier alleen animatie:
+    vleugeltempo schaalt met de klapwiek-energie en de neus kantelt met de
+    verticale snelheid mee.
+    """
+
+    def __init__(self, frames: list, x: float, y: float):
+        self.frames = frames
+        self.x, self.y = x, y
+        self.vy = 0.0
+        self.anim_t = random.uniform(0, 10)
+        self.lift = 0.0
+        self.bump_t = 0.0  # net tegen een wolkje gebotst: even knipperen
+
+    @property
+    def radius(self) -> float:
+        return self.frames[0].get_height() * 0.34
+
+    def update(self, dt: float) -> None:
+        self.anim_t += dt * (5 + self.lift * 13)
+        self.bump_t = max(0.0, self.bump_t - dt)
+
+    def draw(self, screen: pygame.Surface) -> None:
+        img = self.frames[int(self.anim_t) % len(self.frames)]
+        tilt = max(-24.0, min(24.0, -self.vy * 0.045))
+        img = pygame.transform.rotozoom(img, tilt, 1.0)
+        if self.bump_t > 0 and int(self.bump_t * 18) % 2 == 0:
+            img.set_alpha(140)
+        screen.blit(img, (self.x - img.get_width() / 2, self.y - img.get_height() / 2))
+        img.set_alpha(255)
+
+
+class StormCloud:
+    """Knorrig onweerswolkje dat voorbijdrijft; drakenvuur poft hem weg."""
+
+    def __init__(self, x: float, y: float, sprite: pygame.Surface):
+        self.x, self.y = x, y
+        self.sprite = sprite
+        self.radius = sprite.get_width() * 0.34
+        self.phase = random.uniform(0, math.tau)
+        self.bonk_t = 0.0     # draak botste ertegen: even schudden
+        self.popped = False
+
+    def update(self, dt: float, scroll: float) -> bool:
+        self.x -= scroll * dt
+        self.phase += dt * 2.2
+        self.bonk_t = max(0.0, self.bonk_t - dt)
+        return not self.popped and self.x > -self.sprite.get_width()
+
+    def draw(self, screen: pygame.Surface) -> None:
+        bob = math.sin(self.phase) * 7
+        shake = math.sin(self.bonk_t * 30) * 12 if self.bonk_t > 0 else 0
+        screen.blit(self.sprite, (self.x - self.sprite.get_width() / 2 + shake,
+                                  self.y - self.sprite.get_height() / 2 + bob))
+
+
+class FireBreath:
+    """Vuurpufje dat na een klap in je handen uit de drakenmond vooruit schiet."""
+
+    SPEED = 760.0
+
+    def __init__(self, x: float, y: float, glow_levels: list):
+        self.x, self.y = x, y
+        self.glow = glow_levels
+        self.life = self.max_life = 1.1
+        self.phase = random.uniform(0, math.tau)
+
+    def update(self, dt: float, w: float) -> bool:
+        self.x += self.SPEED * dt
+        self.phase += dt * 20
+        self.y += math.sin(self.phase) * 30 * dt
+        self.life -= dt
+        return self.life > 0 and self.x < w + 60
+
+    def draw(self, screen: pygame.Surface) -> None:
+        k = self.life / self.max_life
+        spr = self.glow[min(len(self.glow) - 1, int(k * len(self.glow)))]
+        screen.blit(spr, (self.x - spr.get_width() / 2, self.y - spr.get_height() / 2),
+                    special_flags=pygame.BLEND_ADD)
+
+
+class FallingOrb:
+    """Toverbal die naar beneden dwarrelt; alleen de doelkleur wil gevangen worden."""
+
+    FALL, REJECT = range(2)
+
+    def __init__(self, x: float, radius: int, speed: float, color, sprite: pygame.Surface):
+        self.x, self.y = x, -radius - 20
+        self.radius = radius
+        self.color = color
+        self.sprite = sprite
+        self.vy = speed
+        self.vx = 0.0
+        self.phase = random.uniform(0, math.tau)
+        self.sway = random.uniform(25, 60)
+        self.rot = 0.0
+        self.rot_v = 0.0
+        self.state = FallingOrb.FALL
+        self.caught = False
+
+    def reject(self, away: float) -> None:
+        """Verkeerde kleur aangeraakt: stuitert lachend weg, geen straf."""
+        self.state = FallingOrb.REJECT
+        self.vx = math.copysign(random.uniform(320, 460), away)
+        self.vy = -random.uniform(260, 380)
+        self.rot_v = math.copysign(random.uniform(200, 340), away)
+
+    def update(self, dt: float, h: int) -> bool:
+        self.phase += dt * 1.7
+        if self.state == FallingOrb.FALL:
+            self.x += math.sin(self.phase) * self.sway * dt
+            self.y += self.vy * dt
+        else:
+            self.vy += 900 * dt
+            self.x += self.vx * dt
+            self.y += self.vy * dt
+            self.rot += self.rot_v * dt
+        return not self.caught and self.y < h + self.radius * 2
+
+    def draw(self, screen: pygame.Surface) -> None:
+        img = self.sprite
+        if self.state == FallingOrb.REJECT:
+            img = pygame.transform.rotozoom(img, self.rot, 1.0)
+        screen.blit(img, (self.x - img.get_width() / 2, self.y - img.get_height() / 2))
+
+
+class BounceBubble:
+    """Grote bel om hoog te houden met je handen en hoofd — tel de stuiten mee!"""
+
+    GRAVITY = 190.0
+
+    def __init__(self, x: float, y: float, radius: int, color, sprite: pygame.Surface):
+        self.x, self.y = x, y
+        self.radius = radius
+        self.color = color
+        self.sprite = sprite
+        self.vx = random.uniform(-60, 60)
+        self.vy = 0.0
+        self.count = 0        # hoe vaak al gestuit (het telgetal op de bel)
+        self.hit_cooldown = 0.0
+        self.phase = random.uniform(0, math.tau)
+
+    def update(self, dt: float, w: float) -> None:
+        self.phase += dt * 1.8
+        self.vy += self.GRAVITY * dt
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        self.hit_cooldown = max(0.0, self.hit_cooldown - dt)
+        if self.x < self.radius and self.vx < 0:
+            self.x, self.vx = self.radius, -self.vx * 0.85
+        elif self.x > w - self.radius and self.vx > 0:
+            self.x, self.vx = w - self.radius, -self.vx * 0.85
+
+    def bounce_up(self, from_x: float) -> None:
+        self.vy = -random.uniform(380, 460)
+        self.vx = self.vx * 0.4 + (self.x - from_x) * 3.2
+        self.count += 1
+        self.hit_cooldown = 0.35
+
+    def draw(self, screen: pygame.Surface, digit: pygame.Surface | None) -> None:
+        bob = math.sin(self.phase * 2) * 3
+        screen.blit(self.sprite, (self.x - self.sprite.get_width() / 2,
+                                  self.y - self.sprite.get_height() / 2 + bob))
+        if digit is not None:
+            screen.blit(digit, (self.x - digit.get_width() / 2,
+                                self.y - digit.get_height() / 2 + bob))
+
+
+class KeyPickup:
+    """Sleuteltje in de Kristalgrot: pak het als het zoeklicht uit is."""
+
+    def __init__(self, x: float, y: float, sprite: pygame.Surface):
+        self.x, self.y = x, y
+        self.sprite = sprite
+        self.phase = random.uniform(0, math.tau)
+        self.age = 0.0
+        self.collected = False
+
+    def update(self, dt: float) -> None:
+        self.phase += dt * 2.4
+        self.age += dt
+
+    def draw(self, screen: pygame.Surface) -> None:
+        k = min(1.0, self.age / 0.35)  # even ingroeien
+        img = self.sprite if k >= 1.0 else pygame.transform.rotozoom(self.sprite, 0, k)
+        bob = math.sin(self.phase) * 8
+        screen.blit(img, (self.x - img.get_width() / 2, self.y - img.get_height() / 2 + bob))
+
+
+class ScrollStar:
+    """Ster die in Vliegende draak van rechts aan komt drijven — vang hem met de draak."""
+
+    def __init__(self, x: float, y: float, radius: int, sprite: pygame.Surface):
+        self.x, self.y = x, y
+        self.radius = radius
+        self.sprite = sprite
+        self.phase = random.uniform(0, math.tau)
+        self.rot = random.uniform(0, 360)
+        self.caught = False
+
+    def update(self, dt: float, scroll: float) -> bool:
+        self.x -= scroll * dt
+        self.phase += dt * 2.0
+        self.rot += 40 * dt
+        return not self.caught and self.x > -self.radius * 2
+
+    def draw(self, screen: pygame.Surface) -> None:
+        img = pygame.transform.rotozoom(self.sprite, self.rot, 1.0)
+        y = self.y + math.sin(self.phase) * 10
+        screen.blit(img, (self.x - img.get_width() / 2, y - img.get_height() / 2))
+
+
+class AmbientBee:
+    """Bijtje dat af en toe zoemend voorbijvliegt — puur sfeer (CC0-sprite)."""
+
+    def __init__(self, frames: list, w: float, h: float):
+        self.frames = frames
+        self.from_left = random.random() < 0.5
+        span = frames[0].get_width()
+        self.x = -span if self.from_left else w + span
+        self.vx = random.uniform(130, 200) * (1 if self.from_left else -1)
+        self.base_y = random.uniform(h * 0.18, h * 0.55)
+        self.phase = random.uniform(0, math.tau)
+        self.anim_t = 0.0
+        self.w = w
+
+    def update(self, dt: float) -> bool:
+        self.x += self.vx * dt
+        self.phase += dt * 2.6
+        self.anim_t += dt * 26  # vleugeltjes zoemen snel
+        span = self.frames[0].get_width()
+        return -span * 2 < self.x < self.w + span * 2
+
+    def draw(self, screen: pygame.Surface) -> None:
+        img = self.frames[int(self.anim_t) % len(self.frames)]
+        if self.from_left:  # sprite kijkt van zichzelf naar links
+            img = pygame.transform.flip(img, True, False)
+        y = self.base_y + math.sin(self.phase) * 26
+        screen.blit(img, (self.x - img.get_width() / 2, y - img.get_height() / 2))
+
+
+class SwayPlant:
+    """Bloem of grastoefje onderin: wuift in de wind en buigt weg als de draak
+    er laag overheen scheert."""
+
+    def __init__(self, x: float, ground_y: float, sprite: pygame.Surface,
+                 flower: bool, height: float = 0.0):
+        self.x, self.ground_y = x, ground_y
+        self.sprite = sprite
+        self.flower = flower
+        self.height = height  # steellengte (alleen bloemen)
+        self.phase = random.uniform(0, math.tau)
+        self.sway_speed = random.uniform(1.1, 1.7)
+        self.push = 0.0       # extra buiging door de draak, ebt weg
+
+    def update(self, dt: float) -> None:
+        self.phase += dt * self.sway_speed
+        self.push *= math.exp(-dt * 2.4)
+
+    def draw(self, screen: pygame.Surface) -> None:
+        bend = math.sin(self.phase) * 0.08 + self.push
+        if not self.flower:
+            img = pygame.transform.rotozoom(self.sprite, -math.degrees(bend) * 0.5, 1.0)
+            screen.blit(img, (self.x - img.get_width() / 2,
+                              self.ground_y - img.get_height() + 6))
+            return
+        # steel als boogje richting de bloemkop
+        top = (self.x + math.sin(bend) * self.height, self.ground_y - self.height)
+        mid = (self.x + math.sin(bend) * self.height * 0.35, self.ground_y - self.height * 0.55)
+        pygame.draw.lines(screen, (96, 176, 88), False,
+                          [(self.x, self.ground_y), mid, top], 5)
+        img = pygame.transform.rotozoom(self.sprite, -math.degrees(bend) * 0.7, 1.0)
+        screen.blit(img, (top[0] - img.get_width() / 2, top[1] - img.get_height() / 2))
+
+
 class EscapingAlien:
     """Passagier die uit zijn bel vliegt en zwaaiend het beeld uit tolt."""
 

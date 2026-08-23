@@ -102,6 +102,14 @@ class Sounds:
             tada[start:start + seg.size] += seg[: n - start]
         self.tada = _to_sound(tada, 0.55)
 
+        # drakenvuur: donzige ruis-woesj die omlaag zakt
+        n = int(SR * 0.55)
+        t = np.arange(n) / SR
+        noise = rng.uniform(-1, 1, n)
+        noise = np.convolve(noise, np.ones(20) / 20, mode="same")
+        sweep = np.sin(2 * np.pi * np.cumsum(340 * np.exp(-t * 4) + 90) / SR)
+        self.whoosh = _to_sound((noise * 0.7 + sweep * 0.5) * _env(n, attack=0.03, release=1.0), 0.4)
+
         # zachte ruimtepad-loop op de achtergrond
         n = int(SR * 8)
         t = np.arange(n) / SR

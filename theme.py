@@ -37,6 +37,22 @@ def font(size: int, bold: bool = False) -> pygame.font.Font:
     return _fonts[key]
 
 
+def load_frames(subdir: str, height: int) -> list[pygame.Surface]:
+    """PNG-framereeks uit assets/sprites/<subdir> laden, geschaald op hoogte.
+
+    Enige niet-procedurele sprites in het spel (CC0, zie sprites/LICENSES.md).
+    """
+    folder = os.path.join(ASSETS, "sprites", subdir)
+    frames = []
+    for name in sorted(os.listdir(folder)):
+        if not name.endswith(".png"):
+            continue
+        img = pygame.image.load(os.path.join(folder, name)).convert_alpha()
+        w = round(img.get_width() * height / img.get_height())
+        frames.append(pygame.transform.smoothscale(img, (w, height)))
+    return frames
+
+
 def _surface_from_rgba(rgba: np.ndarray) -> pygame.Surface:
     h, w = rgba.shape[:2]
     return pygame.image.frombuffer(rgba.tobytes(), (w, h), "RGBA").convert_alpha()
@@ -346,6 +362,236 @@ def _draw_hand_icon(size: int, color=AMBER) -> pygame.Surface:
         pygame.draw.circle(s, color, (int(fx * u), int((fy + ln) * u)), int(4.5 * u))
     pygame.draw.line(s, color, (30 * u, 58 * u), (16 * u, 48 * u), int(9 * u))  # duim
     pygame.draw.circle(s, color, (int(16 * u), int(48 * u)), int(4.5 * u))
+    return s
+
+
+def make_storm_cloud(w: int) -> pygame.Surface:
+    return _supersample(_draw_storm_cloud, w)
+
+
+def _draw_storm_cloud(size: int) -> pygame.Surface:
+    """Knorrig onweerswolkje: obstakel in Vliegende draak, poft weg door drakenvuur."""
+    s = pygame.Surface((size, size), pygame.SRCALPHA)
+    u = size / 100.0
+    body = (108, 100, 158)
+    dark = (82, 76, 126)
+    ink = (35, 32, 58)
+    # bliksemstaartje onder de wolk
+    zig = [(50, 66), (43, 78), (51, 76), (44, 92)]
+    pygame.draw.lines(s, AMBER, False, [(x * u, y * u) for x, y in zig], max(3, int(3.5 * u)))
+    # bollen die samen de wolk vormen
+    for cx, cy, r in [(28, 46, 20), (50, 36, 26), (72, 46, 20), (50, 52, 24)]:
+        pygame.draw.circle(s, dark, (int(cx * u), int((cy + 3) * u)), int(r * u))
+    for cx, cy, r in [(28, 44, 19), (50, 34, 25), (72, 44, 19), (50, 50, 23)]:
+        pygame.draw.circle(s, body, (int(cx * u), int(cy * u)), int(r * u))
+    # knorrig gezichtje: schuine wenkbrauwen, oogjes, pruilmondje
+    for side in (-1, 1):
+        ex = 50 + side * 11
+        pygame.draw.line(s, ink, ((ex - side * 7) * u, 33 * u), ((ex + side * 5) * u, 37 * u),
+                         max(2, int(2.6 * u)))
+        pygame.draw.circle(s, (255, 255, 255), (int(ex * u), int(43 * u)), int(5.5 * u))
+        pygame.draw.circle(s, ink, (int(ex * u), int(44 * u)), int(2.6 * u))
+    pygame.draw.arc(s, ink, pygame.Rect(43 * u, 52 * u, 14 * u, 9 * u),
+                    math.pi * 0.1, math.pi * 0.9, max(2, int(2.6 * u)))
+    return s
+
+
+def make_flower(size: int, color) -> pygame.Surface:
+    return _supersample(lambda sz: _draw_flower(sz, color), size)
+
+
+def _draw_flower(size: int, color) -> pygame.Surface:
+    """Bloemkop met blaadjes en een blij gezichtje; de steel tekent SwayPlant zelf."""
+    s = pygame.Surface((size, size), pygame.SRCALPHA)
+    u = size / 100.0
+    ink = (35, 32, 58)
+    for i in range(7):
+        ang = i * math.tau / 7 - math.pi / 2
+        px, py = 50 + math.cos(ang) * 30, 50 + math.sin(ang) * 30
+        rect = pygame.Rect(0, 0, int(40 * u), int(26 * u))
+        rect.center = (int(px * u), int(py * u))
+        petal = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
+        pygame.draw.ellipse(petal, color, petal.get_rect())
+        rot = pygame.transform.rotozoom(petal, -math.degrees(ang), 1.0)
+        s.blit(rot, rot.get_rect(center=rect.center))
+    pygame.draw.circle(s, AMBER, (int(50 * u), int(50 * u)), int(17 * u))
+    for dx in (-7, 7):
+        pygame.draw.circle(s, ink, (int((50 + dx) * u), int(47 * u)), int(2.6 * u))
+    pygame.draw.arc(s, ink, pygame.Rect(43 * u, 50 * u, 14 * u, 9 * u),
+                    math.pi * 1.05, math.pi * 1.95, max(2, int(2.4 * u)))
+    return s
+
+
+def make_grass(size: int) -> pygame.Surface:
+    return _supersample(_draw_grass, size)
+
+
+def _draw_grass(size: int) -> pygame.Surface:
+    """Grastoefje van een paar sprieten, om de bodem levend te maken."""
+    s = pygame.Surface((size, size), pygame.SRCALPHA)
+    u = size / 100.0
+    for i, (x0, tip, wgt) in enumerate([(30, 14, 9), (44, 8, 11), (58, 12, 10), (70, 22, 8)]):
+        col = (150 + i * 12, 215, 100 + i * 10)
+        bend = (i - 1.5) * 8
+        pts = [(x0 * u, 100 * u),
+               ((x0 + bend * 0.4) * u, (100 - (100 - tip) * 0.55) * u),
+               ((x0 + bend) * u, tip * u)]
+        pygame.draw.lines(s, col, False, pts, max(3, int(wgt * u * 0.9)))
+    return s
+
+
+def make_orb(radius: int, color) -> pygame.Surface:
+    """Toverbal: dekkende snoepbal met glans en een blij gezichtje."""
+    d = radius * 2
+    y, x = np.ogrid[:d, :d]
+    nx = (x - radius + 0.5) / radius
+    ny = (y - radius + 0.5) / radius
+    r = np.sqrt(nx ** 2 + ny ** 2)
+    inside = r <= 1.0
+    # bolvormige belichting: licht linksboven, donkere rand
+    lit = np.clip(1.18 - 0.48 * np.sqrt((nx + 0.4) ** 2 + (ny + 0.4) ** 2), 0.55, 1.18)
+    c = np.array(color, dtype=np.float64)
+    rgba = np.zeros((d, d, 4), dtype=np.uint8)
+    rgba[..., :3] = np.clip(c * lit[..., None], 0, 255).astype(np.uint8)
+    rgba[..., 3] = np.where(inside, 255, 0).astype(np.uint8)
+    surf = _surface_from_rgba(rgba)
+    hl = pygame.Surface((d, d), pygame.SRCALPHA)
+    rect = pygame.Rect(0, 0, int(radius * 0.55), int(radius * 0.34))
+    rect.center = (int(radius * 0.62), int(radius * 0.55))
+    pygame.draw.ellipse(hl, (255, 255, 255, 150), rect)
+    surf.blit(hl, (0, 0))
+    ink = (35, 32, 58)
+    for side in (-1, 1):
+        pygame.draw.circle(surf, ink, (int(radius + side * radius * 0.32),
+                                       int(radius * 0.95)), max(2, int(radius * 0.08)))
+    mond = pygame.Rect(0, 0, int(radius * 0.42), int(radius * 0.3))
+    mond.center = (radius, int(radius * 1.22))
+    pygame.draw.arc(surf, ink, mond, math.pi * 1.05, math.pi * 1.95, max(2, int(radius * 0.06)))
+    return surf
+
+
+def make_crystal(w: int, h: int, color) -> pygame.Surface:
+    """Doorschijnend kristal om je achter te verstoppen (Kristalgrot)."""
+    ss = 3
+    sw, sh = w * ss, h * ss
+    s = pygame.Surface((sw, sh), pygame.SRCALPHA)
+    pts = [(0.5, 0.0), (0.92, 0.22), (0.80, 1.0), (0.20, 1.0), (0.08, 0.22)]
+    poly = [(px * sw, py * sh) for px, py in pts]
+    light = tuple(min(255, v + 70) for v in color)
+    pygame.draw.polygon(s, (*color, 150), poly)
+    pygame.draw.polygon(s, (*light, 210), poly, max(3, 3 * ss))
+    # facetlijnen vanaf de punt
+    for tx in (0.20, 0.50, 0.80):
+        pygame.draw.line(s, (*light, 110), (0.5 * sw, 0), (tx * sw, sh), max(2, 2 * ss))
+    # glimlicht
+    pygame.draw.polygon(s, (255, 255, 255, 70),
+                        [(0.42 * sw, 0.10 * sh), (0.55 * sw, 0.16 * sh),
+                         (0.34 * sw, 0.72 * sh), (0.26 * sw, 0.62 * sh)])
+    return pygame.transform.smoothscale(s, (w, h))
+
+
+def make_key(size: int) -> pygame.Surface:
+    return _supersample(_draw_key, size)
+
+
+def _draw_key(size: int) -> pygame.Surface:
+    """Gouden sleuteltje om te verzamelen in de Kristalgrot."""
+    s = pygame.Surface((size, size), pygame.SRCALPHA)
+    u = size / 100.0
+    gold, dark = (255, 205, 90), (200, 150, 50)
+    pygame.draw.circle(s, gold, (int(50 * u), int(26 * u)), int(19 * u), int(10 * u))
+    pygame.draw.line(s, gold, (50 * u, 44 * u), (50 * u, 88 * u), int(11 * u))
+    for ty in (70, 84):
+        pygame.draw.line(s, gold, (50 * u, ty * u), (68 * u, ty * u), int(9 * u))
+    pygame.draw.circle(s, dark, (int(50 * u), int(26 * u)), int(19 * u), max(2, int(3 * u)))
+    pygame.draw.circle(s, (255, 240, 190), (int(43 * u), int(19 * u)), int(4 * u))
+    return s
+
+
+def make_trophy(size: int, color=AMBER) -> pygame.Surface:
+    return _supersample(lambda sz: _draw_trophy(sz, color), size)
+
+
+def _draw_trophy(size: int, color) -> pygame.Surface:
+    """Trofeebeker per avontuur, met een ster erop."""
+    s = pygame.Surface((size, size), pygame.SRCALPHA)
+    u = size / 100.0
+    dark = tuple(max(0, int(v * 0.65)) for v in color)
+    # oren
+    for side in (-1, 1):
+        rect = pygame.Rect(0, 0, int(26 * u), int(34 * u))
+        rect.center = (int((50 + side * 30) * u), int(32 * u))
+        pygame.draw.arc(s, dark, rect, 0, math.tau, max(3, int(6 * u)))
+    # kelk
+    pygame.draw.rect(s, color, pygame.Rect(30 * u, 12 * u, 40 * u, 34 * u),
+                     border_bottom_left_radius=int(20 * u), border_bottom_right_radius=int(20 * u))
+    pygame.draw.ellipse(s, dark, pygame.Rect(30 * u, 8 * u, 40 * u, 10 * u))
+    # steel + voet
+    pygame.draw.rect(s, color, pygame.Rect(45 * u, 46 * u, 10 * u, 16 * u))
+    pygame.draw.rect(s, dark, pygame.Rect(32 * u, 62 * u, 36 * u, 9 * u),
+                     border_radius=int(4 * u))
+    pygame.draw.rect(s, color, pygame.Rect(26 * u, 71 * u, 48 * u, 11 * u),
+                     border_radius=int(5 * u))
+    # ster op de kelk
+    pts = []
+    for i in range(10):
+        ang = -math.pi / 2 + i * math.pi / 5
+        rr = (9 if i % 2 == 0 else 4) * u
+        pts.append((50 * u + math.cos(ang) * rr, 29 * u + math.sin(ang) * rr))
+    pygame.draw.polygon(s, (255, 250, 230), pts)
+    return s
+
+
+def make_lock(size: int) -> pygame.Surface:
+    return _supersample(_draw_lock, size)
+
+
+def _draw_lock(size: int) -> pygame.Surface:
+    """Slotje voor nog niet vrijgespeelde avonturen."""
+    s = pygame.Surface((size, size), pygame.SRCALPHA)
+    u = size / 100.0
+    body, dark = (168, 172, 200), (108, 112, 142)
+    rect = pygame.Rect(0, 0, int(30 * u), int(24 * u))
+    rect.center = (int(50 * u), int(38 * u))
+    pygame.draw.arc(s, dark, rect, 0, math.pi, max(3, int(7 * u)))
+    pygame.draw.rect(s, body, pygame.Rect(30 * u, 44 * u, 40 * u, 34 * u),
+                     border_radius=int(8 * u))
+    pygame.draw.circle(s, dark, (int(50 * u), int(58 * u)), int(5 * u))
+    pygame.draw.line(s, dark, (50 * u, 60 * u), (50 * u, 69 * u), max(2, int(4 * u)))
+    return s
+
+
+def make_cmd_icon(kind: str, size: int, color=AMBER) -> pygame.Surface:
+    return _supersample(lambda sz: _draw_cmd_icon(kind, sz, color), size)
+
+
+def _draw_cmd_icon(kind: str, size: int, color) -> pygame.Surface:
+    """Simpele gebaar-pictogrammen voor Dans!: pijlen, handjes, zwaai-boogjes."""
+    s = pygame.Surface((size, size), pygame.SRCALPHA)
+    u = size / 100.0
+    w = max(4, int(10 * u))
+    if kind in ("spring", "buk"):
+        up = kind == "spring"
+        y0, y1 = (78, 26) if up else (22, 74)
+        pygame.draw.line(s, color, (50 * u, y0 * u), (50 * u, y1 * u), w)
+        dy = 22 if up else -22
+        for side in (-1, 1):
+            pygame.draw.line(s, color, (50 * u, y1 * u),
+                             ((50 + side * 20) * u, (y1 + dy) * u), w)
+    elif kind == "klap":
+        hand = _draw_hand_icon(int(size * 0.62), color)
+        s.blit(pygame.transform.rotozoom(hand, -20, 1.0), (int(-4 * u), int(22 * u)))
+        s.blit(pygame.transform.rotozoom(pygame.transform.flip(hand, True, False), 20, 1.0),
+               (int(42 * u), int(22 * u)))
+    elif kind == "zwaai":
+        for i, ry in enumerate((36, 52, 68)):
+            rect = pygame.Rect(14 * u, (ry - 12) * u, 72 * u, 30 * u)
+            pygame.draw.arc(s, color, rect, math.pi * 0.15, math.pi * 0.85, max(3, int(6 * u)))
+    else:  # "armen": twee armen omhoog in een V
+        for side in (-1, 1):
+            pygame.draw.line(s, color, (50 * u, 80 * u),
+                             ((50 + side * 26) * u, 30 * u), w)
+            pygame.draw.circle(s, color, (int((50 + side * 26) * u), int(26 * u)), int(7 * u))
     return s
 
 

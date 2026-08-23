@@ -5,10 +5,15 @@ camera — en bij duo-figuren met **twee handen tegelijk**, elke hand zijn eigen
 lijn. Alles draait lokaal in de browser (MediaPipe-handdetectie via WASM);
 er wordt niets opgenomen of verstuurd.
 
-## Starten
+## Spelen
+
+**Online:** https://milanzor.github.io/sterrenbellen/ — elke push naar
+`main` deployt automatisch naar GitHub Pages (zie
+`.github/workflows/deploy.yml`).
+
+**Lokaal:**
 
 ```bash
-cd web
 python3 -m http.server 8080
 # open http://localhost:8080 in Chrome/Chromium/Firefox en klik op Spelen
 ```
@@ -47,13 +52,13 @@ Elke statische webserver werkt. De camera vereist een veilige context:
 
 - Los HTML/JS/CSS, geen buildstap. `@mediapipe/tasks-vision`
   (HandLandmarker, WASM + WebGL) en het handmodel zijn meegebundeld in
-  `web/vendor/` — het spel werkt dus ook zonder internet.
+  `vendor/` — het spel werkt dus ook zonder internet.
 - Detectie draait op ~30 Hz (videoframetempo); de cursor wordt met
   exponentiële smoothing op schermtempo (60+ fps) gladgestreken, hetzelfde
   recept als de eerdere native versie.
 - Geluid is procedureel met WebAudio: pentatonische nootjes, tada's, fanfare
   en een vrolijk achtergrondloopje — geen audiobestanden.
-- `web/js/figures.js` bevat de figurenbibliotheek (duo-figuren als
+- `js/figures.js` bevat de figurenbibliotheek (duo-figuren als
   rechterpad + spiegeling), `game.js` de spelregels (voortgang, duo-
   synchronisatie), `fx.js` de deeltjes/confetti/sporen, `hands.js` de
   camera + handdetectie, `audio.js` het geluid.

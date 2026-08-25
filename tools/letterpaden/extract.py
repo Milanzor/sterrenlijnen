@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw
 from skimage.morphology import skeletonize
 from fontTools.ttLib import TTFont
 
-FONT = '/home/milan/projects-prive/camgame/assets/PlaywriteNL.ttf'
+FONT = '/home/milan/projects-prive/sterrenlijnen/assets/PlaywriteNL.ttf'
 S = 560  # renderhoogte (em) in px
 
 tt = TTFont(FONT)

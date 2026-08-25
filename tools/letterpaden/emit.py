@@ -4,7 +4,7 @@ import drive
 from drive import process
 from extract import smooth, resample, NORM
 
-OUT = '/home/milan/projects-prive/camgame/js/letterpaden.js'
+OUT = '/home/milan/projects-prive/sterrenlijnen/js/letterpaden.js'
 
 def norm_pt(r, c, baseline, x0):
     return [round((c - x0) * NORM, 3), round(1.0 - (baseline - r) * NORM, 3)]

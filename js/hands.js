@@ -1,12 +1,12 @@
 // Camera + handdetectie: MediaPipe HandLandmarker (WASM), volledig lokaal
 // gebundeld in vendor/ — er gaat niets het netwerk over.
 //
-// De detectie draait in een Web Worker op verkleinde frames (480×270, ruim
-// genoeg voor vingertoppen), zodat de renderlus er nooit op hoeft te wachten.
+// De detectie draait in een Web Worker op verkleinde frames (640×360: scherp
+// genoeg voor een nauwkeurige vingertop, ook als het kind wat verder af staat), zodat de renderlus er nooit op hoeft te wachten.
 // We gebruiken alléén de wijsvingertop (landmark 8): met één vinger volgen
 // voelt veel natuurlijker en preciezer dan met een hele hand.
 
-const INFER_W = 480, INFER_H = 270;
+const INFER_W = 640, INFER_H = 360;
 
 export class Handen {
   constructor(video, voorkeur = null) {
@@ -26,8 +26,11 @@ export class Handen {
   }
 
   async start() {
-    // camera en model tegelijk laden: scheelt merkbaar opstarttijd
-    const cameraKlaar = navigator.mediaDevices.getUserMedia({
+    await Promise.all([this._startCamera(), this.laadModel()]);
+  }
+
+  _startCamera() {
+    return navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
       audio: false,
     }).then(stream => new Promise(klaar => {
@@ -49,8 +52,21 @@ export class Handen {
       this.video.addEventListener("loadeddata", af, { once: true });
       setTimeout(af, 4000);  // uiterste geval: start gewoon, de lus wacht wel op beeld
     }));
+  }
 
-    const modelKlaar = this.voorkeur === "hoofd"
+  // Het model (20 MB wasm + gewichten) mag al laden terwijl het startscherm
+  // nog staat; na een fout begint een volgende poging opnieuw.
+  laadModel() {
+    return this._model ??= this._laadModel().catch(e => {
+      this._model = null;
+      this.worker?.terminate();
+      this.worker = null;
+      throw e;
+    });
+  }
+
+  _laadModel() {
+    return this.voorkeur === "hoofd"
       ? this._startHoofddraad()  // ?delegate=hoofd: direct zonder worker
       : new Promise((klaar, fout) => {
       this.worker = new Worker("js/handworker.js");  // klassiek, zie handworker.js
@@ -81,8 +97,6 @@ export class Handen {
       this.worker.postMessage({ type: "init", voorkeur: this.voorkeur,
                           traagMs: this.traagMs });
     });
-
-    await Promise.all([cameraKlaar, modelKlaar]);
   }
 
   async _startHoofddraad() {

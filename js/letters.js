@@ -14,11 +14,21 @@
 import { PADEN, KADER, BOVENLIJN } from "./letterpaden.js";
 export { KADER, BOVENLIJN };
 
+// Ankerwoord per letter, zoals de juf het zegt: "de m van maan". Zo hoort
+// het kind de klank in een woord, niet alleen de letternaam.
+const ANKER = {
+  a: "appel", b: "bal", c: "cent", d: "dak", e: "elf", f: "fiets", g: "geit",
+  h: "huis", i: "ik", j: "jas", k: "kat", l: "lam", m: "maan", n: "neus",
+  o: "otter", p: "pen", q: "quiz", r: "roos", s: "sok", t: "tak", u: "bus",
+  v: "vis", w: "wolk", x: "xylofoon", y: "yoghurt", z: "zon",
+};
+
 function L(letter) {
   const paths = PADEN[letter];
-  return { name: `de letter ${letter}`, letter, toon: letter, strokes: true,
+  const van = `de ${letter} van ${ANKER[letter]}`;
+  return { name: van, letter, toon: letter, strokes: true,
            duo: false, paths, kader: KADER, banner: `de ${letter}!`,
-           zegNieuw: `de letter ${letter}`, zegKlaar: letter,
+           zegNieuw: van, zegKlaar: letter,
            badges: paths.length > 1 ? paths.map((_, i) => i + 1) : null };
 }
 

@@ -13,7 +13,7 @@
 import { LEVELS, fitPaths } from "./figures.js";
 import { LETTERS, BOVENLIJN } from "./letters.js";
 import { WOORDEN } from "./words.js";
-import { KLEUREN, SPEELKLEUREN, KIDSFONT, tekenSter, tekstSprite } from "./fx.js";
+import { KLEUREN, SPEELKLEUREN, KIDSFONT, tekenSter, tekstSprite, tekenSprite } from "./fx.js";
 
 const LEAD_MAX = 2;   // duo: zoveel stipjes mag de ene lijn voorlopen
 const OPSLAG = "sterrenlijnen";
@@ -22,6 +22,14 @@ const MODI = {
   letter: { lijst: LETTERS, opslag: `${OPSLAG}-letters`, soort: "Letter", meervoud: "letters" },
   woord:  { lijst: WOORDEN, opslag: `${OPSLAG}-woorden`, soort: "Woord",  meervoud: "woorden" },
 };
+
+// kwadraat van de afstand van punt p tot lijnstuk a–b
+function afstand2(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
+  return (px - ax - dx * t) ** 2 + (py - ay - dy * t) ** 2;
+}
 
 function laadVoortgang(sleutel, maxLevel) {
   try {
@@ -34,11 +42,12 @@ function laadVoortgang(sleutel, maxLevel) {
 }
 
 export class SpoorSpel {
-  constructor(W, H, fx, geluid, { startLevel = null, modus = "level" } = {}) {
+  constructor(W, H, fx, geluid, { startLevel = null, modus = "level", bewaren = true } = {}) {
     this.W = W; this.H = H;
     this.fx = fx;
     this.geluid = geluid;
     this.modus = modus;
+    this.bewaren = bewaren;  // demostand speelt vanzelf: dat is geen voortgang
     this.levels = MODI[modus].lijst;
     this.opslag = MODI[modus].opslag;
     const opgeslagen = laadVoortgang(this.opslag, this.levels.length);
@@ -55,7 +64,21 @@ export class SpoorSpel {
     this.nieuwFiguur();
   }
 
-  resize(W, H) { this.W = W; this.H = H; this.nieuwFiguur(this.figuur); }
+  resize(W, H) {  // zelfde figuur op de nieuwe maat, mét behoud van wat al getrokken is
+    this.W = W; this.H = H;
+    const oud = this.paden, { doneT, sweepT } = this;
+    this.nieuwFiguur(this.figuur);
+    this.doneT = doneT;
+    this.sweepT = sweepT;
+    this.paden.forEach((p, i) => {
+      const o = oud[i], n = p.dots.length;
+      p.kleur = o.kleur;
+      p.lastLitTime = o.lastLitTime;
+      p.progress = o.progress >= o.dots.length ? n
+        : Math.min(n - 1, Math.round(o.progress / o.dots.length * n));
+      p.lit.fill(true, 0, p.progress);
+    });
+  }
 
   get hudSterPos() { return [this.W - 130, 54]; }
 
@@ -66,6 +89,7 @@ export class SpoorSpel {
   }
 
   bewaar() {
+    if (!this.bewaren) return;
     try {
       localStorage.setItem(this.opslag, JSON.stringify(
         { level: this.levelIdx, sterren: this.sterren }));
@@ -86,8 +110,12 @@ export class SpoorSpel {
       }
     }
     this.figuur = spec;
-    const spacing = this.H * (spec.kader ? 0.07 : 0.082);
-    const { paden: fitted, naarX, naarY, k } = fitPaths(spec.paths, this.W, this.H, spacing, spec.kader);
+    // schrijven vraagt precisie: stipjes dichter op elkaar (naar lettermaat)
+    // en een kleiner raakvlak, zodat de vinger de lettervorm écht volgt
+    const spacing = spec.kader ? k => Math.max(this.H * 0.042, k * 0.16) : this.H * 0.082;
+    this.hit = this.H * (spec.kader ? 0.05 : 0.062);
+    const { paden: fitted, lijnen, snedes, naarX, naarY, k } =
+      fitPaths(spec.paths, this.W, this.H, spacing, spec.kader);
     if (spec.kader) {  // schrijflijnen: bovenlijn (stokhoogte), x-hoogte, grondlijn
       let minX = Infinity, maxX = -Infinity;
       for (const p of spec.paths) for (const [x] of p) {
@@ -115,6 +143,10 @@ export class SpoorSpel {
     }
     this.paden = fitted.map((dots, i) => ({
       dots,
+      lijn: lijnen[i],   // het échte pad (vloeiend), dots zijn de controlepunten
+      na: snedes[i],
+      gids: this._lijnPad(lijnen[i], lijnen[i].length),
+      spoor: null, spoorN: -1,
       lit: dots.map(() => false),
       litAt: dots.map(() => 0),
       progress: 0,
@@ -125,6 +157,13 @@ export class SpoorSpel {
     this.sweepT = -1;
     this.lastLit = performance.now() / 1000;
     this.duoHintT = 0;
+  }
+
+  _lijnPad(lijn, tot, eind = null) {
+    const p = new Path2D();
+    for (let q = 0; q < tot; q++) p.lineTo(lijn[q][0], lijn[q][1]);
+    if (eind) p.lineTo(eind[0], eind[1]);
+    return p;
   }
 
   get klaar() { return this.paden.every(p => p.progress >= p.dots.length); }
@@ -194,13 +233,14 @@ export class SpoorSpel {
     // ná elkaar pakken, maar nooit buiten de volgorde om.
     const pad = this.paden[padIdx];
     const ander = this.figuur.duo && this.paden.length > 1 ? this.paden[1 - padIdx] : null;
-    const HIT2 = (this.H * 0.062) ** 2;
-    const pts = [[v.x, v.y], [(v.x + v.px) / 2, (v.y + v.py) / 2]];
+    const HIT2 = this.hit ** 2;
     while (pad.progress < pad.dots.length) {
       const i = pad.progress;
       const [dx, dy] = pad.dots[i];
-      if (!pts.some(([px, py]) => (px - dx) ** 2 + (py - dy) ** 2 < HIT2)) break;
-      if (ander && this._aantalLit(pad) - this._aantalLit(ander) >= LEAD_MAX) {
+      // het hele stukje dat de vinger dit frame aflegde telt, niet alleen
+      // het eindpunt: een snelle vinger springt zo nooit over een stip heen
+      if (afstand2(dx, dy, v.px, v.py, v.x, v.y) >= HIT2) break;
+      if (ander && pad.progress - ander.progress >= LEAD_MAX) {
         // wacht op je andere hand: zachte puls + heel af en toe een tikje
         this.waitPulse[padIdx] = 0.6;
         if (nu - this._lastWaitTik > 1.2) {
@@ -218,8 +258,6 @@ export class SpoorSpel {
       this.fx.gloed(dx, dy, pad.kleur, 4, 0.5);
     }
   }
-
-  _aantalLit(pad) { return pad.lit.reduce((a, b) => a + (b ? 1 : 0), 0); }
 
   _afgerond() {
     const duo = this.figuur.duo;
@@ -273,12 +311,14 @@ export class SpoorSpel {
     }
     // figuurnaam bovenin (bounce'je zolang het figuur net af is), uit de cache
     const naam = this.figuur.name + (duo ? "  ✦ twee handen!" : "");
-    const spr = tekstSprite(naam, Math.round(this.H * 0.055), this.paden[0].kleur,
+    // schrijfletters hebben lange stokken en staarten: iets kleiner, anders
+    // hangen ze in de schrijfregel
+    const spr = tekstSprite(naam, Math.round(this.H * (schrijf ? 0.044 : 0.055)), this.paden[0].kleur,
                             schrijf ? { font: KIDSFONT, gewicht: 400 } : {});
     const schaal = this.doneT > 0 ? 1 + Math.sin(Math.min(1, this.sweepT / 0.3) * Math.PI) * 0.18 : 1;
-    ctx.drawImage(spr, this.W / 2 - spr.width * schaal / 2,
-                  this.H * 0.15 - spr.height * schaal / 2,
-                  spr.width * schaal, spr.height * schaal);
+    // de levelbanner neemt even de plek van de naam in (niet over het figuur heen)
+    if (this.levelBannerT > 0) this._tekenLevelBanner(ctx);
+    else tekenSprite(ctx, spr, this.W / 2, this.H * (schrijf ? 0.13 : 0.15), schaal);
 
     // voorbeeld naast de schrijfregel, in het kinderfont (Kermit):
     // de losse letter groot, een heel woord wat kleiner
@@ -287,9 +327,9 @@ export class SpoorSpel {
       const vb = tekstSprite(this.figuur.toon, px, this.paden[0].kleur,
                              { font: KIDSFONT, gewicht: 400 });
       const vx = this.schrijflijnen.x0 - this.schrijflijnen.k * 0.42;
-      if (vx - vb.width / 2 > 8) {
+      if (vx - vb.lw / 2 > 8) {
         ctx.globalAlpha = 0.9;
-        ctx.drawImage(vb, vx - vb.width / 2, this.H * 0.52 - vb.height / 2);
+        tekenSprite(ctx, vb, vx, this.H * 0.52);
         ctx.globalAlpha = 1;
       }
     }
@@ -299,7 +339,6 @@ export class SpoorSpel {
     } else if (nu - this.lastLit > 8 && this.doneT <= 0) {
       this._pulsTekst(ctx, "Volg de stipjes met je wijsvinger!", nu);
     }
-    if (this.levelBannerT > 0) this._tekenLevelBanner(ctx);
   }
 
   _tekenPad(ctx, pad, padIdx, nu, actief = -1) {
@@ -309,70 +348,72 @@ export class SpoorSpel {
     // halen die nog niet aan de beurt zijn: vast te zien, maar gedimd
     const dof = strokes && padIdx > actief ? 0.35 : 1;
     ctx.globalAlpha = dof;
-    // vage voorbeeldlijn
+    // vage voorbeeldlijn: het échte pad, dus letters zijn vloeiend
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
     ctx.strokeStyle = "rgba(120,124,165,0.55)";
     ctx.lineWidth = 3;
-    ctx.beginPath();
-    dots.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-    ctx.stroke();
+    ctx.stroke(pad.gids);
     ctx.globalAlpha = 1;
     // het al gevolgde stuk, met gloed (twee lagen: breed doorschijnend + strak —
     // véél goedkoper dan shadowBlur, dat elk frame een filter kost)
     if (progress >= 2) {
-      ctx.save();
-      ctx.lineJoin = "round";
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      for (let i = 0; i < progress; i++) {
-        const [x, y] = dots[i];
-        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      if (pad.spoorN !== progress) {  // alleen opnieuw opbouwen bij een nieuwe stip
+        const af = progress >= dots.length;
+        pad.spoor = this._lijnPad(pad.lijn, af ? pad.lijn.length : pad.na[progress - 1],
+                                  af ? null : dots[progress - 1]);
+        pad.spoorN = progress;
       }
+      ctx.save();
       ctx.globalCompositeOperation = "lighter";
       ctx.globalAlpha = 0.30;
       ctx.strokeStyle = kleur;
       ctx.lineWidth = 18;
-      ctx.stroke();
+      ctx.stroke(pad.spoor);
       ctx.globalCompositeOperation = "source-over";
       ctx.globalAlpha = 1;
       ctx.lineWidth = 7;
-      ctx.stroke();
+      ctx.stroke(pad.spoor);
       ctx.restore();
     }
     // afrondings-animatie: een lichtstreep raast over de hele lijn
     if (this.sweepT >= 0 && this.sweepT < 0.9) {
       const kop = this.sweepT / 0.9 * dots.length;
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      for (let i = Math.max(0, Math.floor(kop) - 4); i < Math.min(dots.length, Math.ceil(kop)); i++) {
-        const [x, y] = dots[i];
-        ctx.lineTo(x, y);
+      const a = Math.max(0, Math.floor(kop) - 4);
+      const b = Math.min(dots.length, Math.ceil(kop)) - 1;
+      if (b > a) {
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.beginPath();
+        ctx.moveTo(dots[a][0], dots[a][1]);
+        for (let q = pad.na[a]; q < pad.na[b]; q++) ctx.lineTo(pad.lijn[q][0], pad.lijn[q][1]);
+        ctx.lineTo(dots[b][0], dots[b][1]);
+        ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 22;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = 9;
+        ctx.stroke();
+        ctx.restore();
       }
-      ctx.globalAlpha = 0.5;
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 22;
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.lineWidth = 9;
-      ctx.stroke();
-      ctx.restore();
     }
     // stipjes
     ctx.globalAlpha = dof;
+    const r = this.figuur.kader ? 6 : 8;  // schrijven: fijnere stipjes, de lijn is de letter
     for (let i = 0; i < dots.length; i++) {
       const [x, y] = dots[i];
       if (lit[i]) {
         const flits = Math.max(0, 0.35 - (nu - pad.litAt[i])) / 0.35;
         ctx.fillStyle = "#fff";
         ctx.beginPath();
-        ctx.arc(x, y, 8 + flits * 7, 0, Math.PI * 2);
+        ctx.arc(x, y, r * 0.85 + flits * 7, 0, Math.PI * 2);
         ctx.fill();
       } else {
         ctx.strokeStyle = "rgba(205,209,238,0.9)";
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(x, y, 8, 0, Math.PI * 2);
+        ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.stroke();
       }
     }
@@ -396,7 +437,7 @@ export class SpoorSpel {
       const spr = tekstSprite(String(nr), 20,
                               af ? "#8b90b8" : aanBeurt ? "#1a1530" : "#fff",
                               { gewicht: 800, schaduw: false });
-      ctx.drawImage(spr, bx - 24 - spr.width / 2, by - 24 - spr.height / 2);
+      tekenSprite(ctx, spr, bx - 24, by - 24);
       ctx.globalAlpha = 1;
     }
     // markeer de volgende stip: pulserende ring + draaiend sterretje
@@ -414,7 +455,7 @@ export class SpoorSpel {
       if (wacht) {  // wacht op je andere hand
         const w = tekstSprite("wacht op je andere hand…", Math.round(this.H * 0.026),
                               KLEUREN.AMBER, { gewicht: 700, schaduw: false });
-        ctx.drawImage(w, x - w.width / 2, y - rr - 12 - w.height / 2);
+        tekenSprite(ctx, w, x, y - rr - 12);
       }
     }
   }
@@ -448,7 +489,7 @@ export class SpoorSpel {
     const puls = 0.5 + 0.5 * Math.sin(nu * 2.6);
     const spr = tekstSprite(tekst, Math.round(this.H * 0.045), "#fff");
     ctx.globalAlpha = 0.6 + 0.4 * puls;
-    ctx.drawImage(spr, this.W / 2 - spr.width / 2, this.H * 0.88 - spr.height / 2);
+    tekenSprite(ctx, spr, this.W / 2, this.H * 0.88);
     ctx.globalAlpha = 1;
   }
 
@@ -458,12 +499,11 @@ export class SpoorSpel {
     const tekst = this.levelIdx < this.levels.length
       ? (this.figuur.banner ?? `Level ${this.levelIdx + 1}!`)
       : `Alle ${this.levels.length} ${MODI[this.modus].meervoud} gehaald!`;
-    const spr = tekstSprite(tekst, Math.round(this.H * 0.09), KLEUREN.AMBER,
+    const spr = tekstSprite(tekst, Math.round(this.H * 0.08), KLEUREN.AMBER,
                             this.figuur.kader ? { font: KIDSFONT, gewicht: 400 } : {});
     const s = 0.6 + 0.4 * k;
     ctx.globalAlpha = alpha;
-    ctx.drawImage(spr, this.W / 2 - spr.width * s / 2, this.H * 0.30 - spr.height * s / 2,
-                  spr.width * s, spr.height * s);
+    tekenSprite(ctx, spr, this.W / 2, this.H * 0.15, s);
     ctx.globalAlpha = 1;
   }
 }

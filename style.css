@@ -1,14 +1,24 @@
 @font-face {
   font-family: "Baloo 2";
-  src: url("assets/Baloo2.ttf") format("truetype");
+  src: url("assets/Baloo2.woff2") format("woff2");
   font-weight: 400 800;
+  font-display: swap;
 }
 
 /* Nederlands schoolschrift met lussen (Google/TypeTogether, OFL, gebundeld) */
 @font-face {
   font-family: "Playwrite NL";
-  src: url("assets/PlaywriteNL.ttf") format("truetype");
+  src: url("assets/PlaywriteNL.woff2") format("woff2");
   font-weight: 100 400;
+  font-display: swap;
+}
+
+:root {
+  --nacht: #05070f;
+  --amber: #ffc24a;
+  --teal: #5fe3c4;
+  --lila: #c5a0ff;
+  --inkt: #1a1530;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -16,20 +26,29 @@
 html, body {
   height: 100%;
   overflow: hidden;
-  background: #05070f;
+  background: var(--nacht);
   font-family: "Baloo 2", system-ui, sans-serif;
   color: #fff;
 }
 
-#cam { display: none; }
-
-#scherm {
+/* Lagen van achter naar voor: camerabeeld, hemel (vignet + sterren), spel. */
+#cam, #hemel, #scherm {
   position: fixed;
   inset: 0;
-  width: 100vw;
-  height: 100vh;
-  touch-action: none;
+  width: 100%;
+  height: 100%;
 }
+
+/* het scherm is een spiegel; cover-fit moet gelijk lopen met camNaarScherm */
+#cam {
+  object-fit: cover;
+  transform: scaleX(-1);
+  opacity: 0;
+  transition: opacity .6s;
+}
+#cam.aan { opacity: 1; }
+
+#scherm { touch-action: none; }
 
 #overlay {
   position: fixed;
@@ -38,76 +57,148 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 22px;
-  background: radial-gradient(ellipse at 50% 35%, #171633 0%, #05070f 70%);
+  gap: clamp(14px, 2.6vh, 26px);
+  background: radial-gradient(ellipse at 50% 35%, rgba(34, 32, 78, .9) 0%, rgba(5, 7, 15, .55) 70%);
   text-align: center;
   padding: 24px;
   z-index: 10;
+  overflow-y: auto;
+  transition: opacity .45s, transform .45s;
 }
+#overlay.weg { opacity: 0; transform: scale(1.04); pointer-events: none; }
 
 #overlay h1 {
-  font-size: clamp(52px, 9vw, 120px);
+  font-size: clamp(48px, 9vw, 116px);
   font-weight: 800;
-  color: #ffc24a;
+  line-height: 1;
+  color: var(--amber);
   text-shadow: 0 0 40px rgba(255, 194, 74, .45);
 }
 
-#overlay .uitleg { font-size: clamp(18px, 2.6vw, 30px); color: #dce0ff; max-width: 26em; }
-#overlay .klein  { font-size: 14px; color: #8b90b8; }
+#overlay .uitleg {
+  font-size: clamp(17px, 2.4vw, 28px);
+  color: #dce0ff;
+  max-width: 30em;
+  text-wrap: balance;
+}
+#overlay .klein { font-size: 14px; color: #8b90b8; }
 
 .knopRij {
-  display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(12px, 1.8vw, 22px);
+  width: min(100%, 880px);
+  margin-top: 6px;
 }
 
 .startknop {
-  font: 800 clamp(22px, 2.8vw, 34px) "Baloo 2", sans-serif;
-  color: #1a1530;
-  background: #ffc24a;
+  --kleur: var(--amber);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-family: inherit;
+  color: var(--inkt);
+  background: var(--kleur);
   border: none;
-  border-radius: 999px;
-  padding: .55em 1.3em;
+  border-radius: 28px;
+  padding: 18px 14px 16px;
   cursor: pointer;
-  box-shadow: 0 0 34px rgba(255, 194, 74, .5);
-  transition: transform .15s;
+  box-shadow: 0 0 34px color-mix(in srgb, var(--kleur) 45%, transparent),
+              inset 0 -6px 0 rgba(26, 21, 48, .14);
+  transition: transform .15s, box-shadow .15s, opacity .2s;
 }
-.startknop:hover { transform: scale(1.06); }
+.startknop.letters { --kleur: var(--teal); }
+.startknop.woorden { --kleur: var(--lila); }
+.startknop:hover:not(:disabled) { transform: translateY(-4px) scale(1.03); }
+.startknop:active:not(:disabled) { transform: scale(.97); }
+.startknop:disabled { opacity: .55; cursor: progress; }
+.startknop:focus-visible, #knoppen button:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
 
-/* Letter/Woorden modus: in het schoolschrift (Playwrite NL heeft geen vet) */
-.startknop.letters,
-.startknop.woorden {
-  font-family: "Playwrite NL", "Baloo 2", sans-serif;
-  font-weight: 400;
+.startknop .beeld {
+  height: clamp(54px, 9vh, 84px);
+  display: grid;
+  place-items: center;
 }
-.startknop.letters {
-  background: #5fe3c4;
-  box-shadow: 0 0 34px rgba(95, 227, 196, .5);
+.startknop svg.beeld { aspect-ratio: 1; fill: var(--inkt); }
+.startknop .naam { font-size: clamp(18px, 2.2vw, 28px); font-weight: 800; line-height: 1.15; }
+.startknop .sub  { font-size: clamp(13px, 1.3vw, 17px); font-weight: 600; opacity: .72; }
+
+/* het schoolschrift (Playwrite NL heeft geen vet) */
+.schrijf { font-family: "Playwrite NL", "Baloo 2", sans-serif; font-weight: 400; }
+.startknop .schrijf { font-size: clamp(26px, 4.4vh, 42px); }
+
+@media (max-width: 620px) {
+  .knopRij { grid-template-columns: 1fr; width: min(100%, 340px); }
+  .startknop { padding: 10px 14px 12px; }
+  .startknop .beeld { height: 58px; }
+  .startknop .schrijf { font-size: 24px; }
 }
-.startknop.woorden {
-  background: #c5a0ff;
-  box-shadow: 0 0 34px rgba(197, 160, 255, .5);
+
+#status { font-size: 18px; color: #dce0ff; display: flex; align-items: center; gap: 10px; }
+.draaier {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, .25);
+  border-top-color: var(--amber);
+  animation: draai .8s linear infinite;
 }
+@keyframes draai { to { transform: rotate(360deg); } }
 
 #foutmelding { color: #ff8a8a; font-size: 18px; max-width: 34em; }
 
+[hidden] { display: none !important; }
+
 #knoppen {
   position: fixed;
-  top: 14px;
-  left: 14px;
+  top: max(14px, env(safe-area-inset-top));
+  left: max(14px, env(safe-area-inset-left));
   display: flex;
   gap: 10px;
   z-index: 5;
 }
 #knoppen button {
-  font-size: 22px;
   width: 46px;
   height: 46px;
+  display: grid;
+  place-items: center;
   border: none;
   border-radius: 50%;
   background: rgba(23, 22, 51, .65);
-  color: #fff;
+  color: #e8eaff;
   cursor: pointer;
+  transition: background .15s, transform .15s;
 }
-#knoppen button:hover { background: rgba(43, 42, 81, .8); }
+#knoppen button:hover { background: rgba(43, 42, 81, .85); }
+#knoppen button:active { transform: scale(.92); }
+#knoppen svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#knoppen .schrijf { font-size: 15px; line-height: 1; }
+
+#geluid .kruis, #geluid.uit .golf { display: none; }
+#geluid.uit .kruis { display: inline; }
+#geluid.uit { color: #8b90b8; }
+
+/* wisselknop toont de modus waar je heen gaat */
+#wissel > * { display: none; }
+#wissel[data-naar="level"] .naar-level,
+#wissel[data-naar="letter"] .naar-letter,
+#wissel[data-naar="woord"] .naar-woord { display: block; }
+#wissel[data-naar="level"] { color: var(--amber); }
+#wissel[data-naar="letter"] { color: var(--teal); }
+#wissel[data-naar="woord"] { color: var(--lila); }
+
+@media (prefers-reduced-motion: reduce) {
+  #overlay, #cam, .startknop { transition: none; }
+}

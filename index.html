@@ -2,32 +2,60 @@
 <html lang="nl">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Sterrenlijnen</title>
+  <meta name="description" content="Trek figuren, letters en woorden na met je wijsvinger voor de camera. Voor kinderen, volledig in de browser.">
+  <meta name="theme-color" content="#05070f">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icoon.svg" type="image/svg+xml">
+  <link rel="preload" href="assets/Baloo2.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>⭐</text></svg>">
 </head>
 <body>
   <video id="cam" playsinline muted></video>
+  <canvas id="hemel"></canvas>
   <canvas id="scherm"></canvas>
 
-  <div id="overlay">
+  <main id="overlay">
     <h1>Sterrenlijnen</h1>
     <p class="uitleg">Volg de stipjes met je wijsvinger — soms met twee handen tegelijk!</p>
     <div class="knopRij">
-      <button id="start" class="startknop">⭐&nbsp; Level modus</button>
-      <button id="startLetters" class="startknop letters">🔤&nbsp; Letter leer modus</button>
-      <button id="startWoorden" class="startknop woorden">📖&nbsp; Woorden modus</button>
+      <button class="startknop" data-modus="level">
+        <svg class="beeld" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.8 6 6.6.8-4.9 4.5 1.3 6.5L12 17.2l-5.8 3.2 1.3-6.5L2.6 9.4l6.6-.8z"/></svg>
+        <span class="naam">Level modus</span>
+        <span class="sub">100 figuren natrekken</span>
+      </button>
+      <button class="startknop letters" data-modus="letter">
+        <span class="beeld schrijf" aria-hidden="true">abc</span>
+        <span class="naam">Letter leer modus</span>
+        <span class="sub">a t/m z schrijven</span>
+      </button>
+      <button class="startknop woorden" data-modus="woord">
+        <span class="beeld schrijf" aria-hidden="true">kat</span>
+        <span class="naam">Woorden modus</span>
+        <span class="sub">20 leeswoordjes</span>
+      </button>
     </div>
+    <p id="status" role="status" hidden><span class="draaier"></span>Even laden…</p>
+    <p id="foutmelding" role="alert" hidden></p>
     <p class="klein">De camera blijft in je browser; er wordt niets opgenomen of verstuurd.</p>
-    <p id="foutmelding" hidden></p>
-  </div>
+  </main>
 
   <div id="knoppen" hidden>
-    <button id="geluid" title="Geluid aan/uit">🔊</button>
-    <button id="volscherm" title="Volledig scherm">⛶</button>
-    <button id="overslaan" title="Level overslaan">⏭</button>
-    <button id="wissel" title="Wissel van modus">🔤</button>
+    <button id="geluid" title="Geluid aan/uit (M)" aria-label="Geluid aan/uit">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path class="golf" d="M15.5 9a4.5 4.5 0 010 6M18 6.5a8 8 0 010 11"/><path class="kruis" d="M16 9.5l5 5m0-5l-5 5"/></svg>
+    </button>
+    <button id="volscherm" title="Volledig scherm (F)" aria-label="Volledig scherm">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>
+    </button>
+    <button id="overslaan" title="Overslaan (N of →)" aria-label="Overslaan">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5l9 6.5-9 6.5z" fill="currentColor"/><path d="M18.5 5.5v13"/></svg>
+    </button>
+    <button id="wissel" title="Wissel van modus (W)" aria-label="Wissel van modus">
+      <svg class="naar-level" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.5 5.400 5.900.7-4.400 4 1.200 5.800L12 16.5l-5.200 2.900L8 13.600l-4.400-4 5.900-.7z" fill="currentColor"/></svg>
+      <span class="naar-letter schrijf" aria-hidden="true">a</span>
+      <span class="naar-woord schrijf" aria-hidden="true">kat</span>
+    </button>
   </div>
 
   <script type="module" src="js/main.js"></script>

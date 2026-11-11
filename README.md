@@ -28,8 +28,10 @@ Elke statische webserver werkt. De camera vereist een veilige context:
   `?letter=b` springt naar die letter.
 - `?woorden=1` — idem voor de Woorden modus; `?woord=kat` springt naar
   dat woord.
-- Knoppen linksboven: geluid aan/uit, volledig scherm, level overslaan en
-  wisselen tussen de modi.
+- Knoppen linksboven: geluid aan/uit (M), volledig scherm (F), overslaan
+  (N of →) en wisselen tussen de modi (W) — de toetsen zijn voor papa/mama,
+  het kind heeft zijn handen in de lucht. Wisselen gebeurt ter plekke: camera
+  en handmodel blijven draaien.
 
 ## Drie modi
 
@@ -41,15 +43,21 @@ Elke statische webserver werkt. De camera vereist een veilige context:
   naast de schrijfregel staat de letter als voorbeeld in **Playwrite NL**
   (Google/TypeTogether, OFL, meegebundeld in `assets/`): het Nederlandse
   verbonden schoolschrift met lussen, gebaseerd op het Primarium-onderzoek
-  naar hoe kinderen hier leren schrijven. Bij elke letter wordt de naam ook
-  uitgesproken (SpeechSynthesis, Nederlands).
+  naar hoe kinderen hier leren schrijven. Elke letter krijgt een ankerwoord,
+  zoals de juf het zegt: "de m van maan" — te zien bovenin en uitgesproken
+  (SpeechSynthesis, met een Nederlandse stem; is die er niet, dan blijft het
+  stil in plaats van een Engelse stem Nederlands te laten voorlezen).
+  Het na te trekken spoor is de échte lettervorm (vloeiend, uit het font);
+  de stipjes staan dicht op elkaar en het raakvlak is kleiner dan bij de
+  figuren, zodat de vinger de vorm werkelijk volgt, tot het eind van de haal.
 - **Woorden modus** — twintig korte klankzuivere leeswoorden (ik, aap, kat,
   vis … maan, roos, poes), samengesteld uit dezelfde letterhalen: je trekt
   het woord letter voor letter, haal voor haal, elke letter in zijn eigen
   kleur, en aan het eind wordt het woord uitgesproken.
 
 Elke modus onthoudt zijn eigen voortgang (localStorage); met de knop
-linksboven wissel je rond (Level → Letters → Woorden).
+linksboven wissel je rond (Level → Letters → Woorden). De demostand slaat
+niets op.
 
 ## Het spel
 
@@ -90,12 +98,19 @@ linksboven wissel je rond (Level → Letters → Woorden).
   (HandLandmarker, WASM + WebGL) en het handmodel zijn meegebundeld in
   `vendor/` — het spel werkt dus ook zonder internet.
 - Detectie draait op ~30 Hz in een **Web Worker** op verkleinde frames
-  (480×270): de renderlus wacht er nooit op, dus geen haperingen als het
-  model even langer doet over een frame. De cursor wordt met exponentiële
-  smoothing op schermtempo (60+ fps) gladgestreken.
-- Tekenwerk is gierig gehouden: gloed als vooraf gerenderde sprites (geen
-  gradients per frame), lijngloed met dubbele strokes in plaats van dure
-  shadowBlur, en teksten uit een canvas-cache.
+  (640×360): de renderlus wacht er nooit op, dus geen haperingen als het
+  model even langer doet over een frame. Het model laadt al terwijl het
+  startscherm nog staat. De cursor wordt op schermtempo (60+ fps) adaptief
+  gladgestreken: stil = rustig op de stip, bewegen = direct volgen. Raken
+  telt over het hele stukje dat de vinger per frame aflegt.
+- Tekenwerk is gierig gehouden: camerabeeld, vignet en sterren zijn eigen
+  lagen áchter het spelcanvas (de browser zet de video zelf neer), gloed als
+  vooraf gerenderde sprites, lijnen als gecachete `Path2D`, lijngloed met
+  dubbele strokes in plaats van dure shadowBlur, en teksten uit een
+  canvas-cache op schermresolutie.
+- Fonts als woff2 (`assets/PlaywriteNL.ttf` blijft staan als bron voor
+  `tools/letterpaden`). Het scherm blijft wakker tijdens het spelen (Wake
+  Lock) en de muziek pauzeert als het tabblad uit beeld is.
 - Geluid is procedureel met WebAudio: kinderliedjes noot voor noot (audio.js
   LIEDJES, toonladder-graden in majeur), tada's, fanfare en een zachte
   bas/akkoord-puls als achtergrond — geen audiobestanden. De achtergrond

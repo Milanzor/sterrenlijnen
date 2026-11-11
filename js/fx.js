@@ -33,7 +33,16 @@ export function gloedSprite(kleur) {
 }
 
 // Tekst met schaduw is duur om elk frame opnieuw te zetten; cache als canvas.
+// Sprites worden op schermresolutie (dpr) gerenderd, anders zijn ze wazig;
+// lw/lh zijn de maten in CSS-pixels.
 const _tekstCache = new Map();
+let _dpr = 1;
+export function zetSpriteDpr(dpr) {
+  if (dpr === _dpr) return;
+  _dpr = dpr;
+  _tekstCache.clear();
+}
+
 export function tekstSprite(tekst, px, kleur,
                             { gewicht = 800, schaduw = true, font = '"Baloo 2"' } = {}) {
   const sleutel = `${tekst}|${px}|${kleur}|${gewicht}|${schaduw}|${font}`;
@@ -44,22 +53,31 @@ export function tekstSprite(tekst, px, kleur,
     const g0 = c.getContext("2d");
     g0.font = `${gewicht} ${px}px ${font}`;
     const pad = Math.ceil(px * 0.5);
-    c.width = Math.ceil(g0.measureText(tekst).width) + pad * 2;
+    c.lw = Math.ceil(g0.measureText(tekst).width) + pad * 2;
     // schrijfletters hebben lange stokken en lussen: ruimer opmeten
-    c.height = Math.ceil(px * (font.includes("Playwrite") ? 2.4 : 1.5));
+    c.lh = Math.ceil(px * (font.includes("Playwrite") ? 2.4 : 1.5));
+    c.width = Math.ceil(c.lw * _dpr);
+    c.height = Math.ceil(c.lh * _dpr);
     const g = c.getContext("2d");
+    g.scale(_dpr, _dpr);
     g.font = `${gewicht} ${px}px ${font}`;
     g.textAlign = "center";
     g.textBaseline = "middle";
     if (schaduw) {
       g.shadowColor = "rgba(0,0,0,0.55)";
-      g.shadowBlur = px * 0.22;
+      g.shadowBlur = px * 0.22 * _dpr;
     }
     g.fillStyle = kleur;
-    g.fillText(tekst, c.width / 2, c.height / 2);
+    g.fillText(tekst, c.lw / 2, c.lh / 2);
     _tekstCache.set(sleutel, c);
   }
   return c;
+}
+
+// Sprite gecentreerd op (cx, cy) tekenen, in CSS-pixels.
+export function tekenSprite(ctx, spr, cx, cy, schaal = 1) {
+  const w = spr.lw * schaal, h = spr.lh * schaal;
+  ctx.drawImage(spr, cx - w / 2, cy - h / 2, w, h);
 }
 
 export function tekenSter(ctx, x, y, r, rot, kleur) {
@@ -125,9 +143,11 @@ export class Effecten {
       p.y += p.vy * dt;
       if (p.rotV) p.rot += p.rotV * dt;
     }
-    this.deeltjes = this.deeltjes.filter(p => p.leven > 0);
+    let n = 0;  // ter plekke opruimen: geen nieuwe array per frame
+    for (const p of this.deeltjes) if (p.leven > 0) this.deeltjes[n++] = p;
+    this.deeltjes.length = n;
     for (const r of this.ringen) r.leven -= dt;
-    this.ringen = this.ringen.filter(r => r.leven > 0);
+    if (this.ringen.length) this.ringen = this.ringen.filter(r => r.leven > 0);
     let klaar = 0;
     for (const v of this.vliegers) {
       v.t += dt;
@@ -137,7 +157,7 @@ export class Effecten {
       v.y = v.sy + (v.ty - v.sy) * e - Math.sin(k * Math.PI) * 80;
       if (k >= 1) klaar++;
     }
-    this.vliegers = this.vliegers.filter(v => v.t < v.dur);
+    if (klaar) this.vliegers = this.vliegers.filter(v => v.t < v.dur);
     return klaar;  // aantal sterren dat de teller bereikte (voor het bump-effect)
   }
 
@@ -204,32 +224,27 @@ export class Spoor {
   }
 }
 
-export function maakSterrenhemel(W, H, n = 90) {
-  const c = document.createElement("canvas");
-  c.width = W; c.height = H;
-  const ctx = c.getContext("2d");
-  for (let i = 0; i < n; i++) {
-    const x = Math.random() * W, y = Math.random() * H;
-    const rand = Math.min(x, W - x) / W + Math.min(y, H - y) / H;
-    if (Math.random() < rand * 2.2) continue;  // het midden is voor het kind
-    ctx.globalAlpha = 0.25 + Math.random() * 0.4;
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.arc(x, y, Math.random() < 0.75 ? 1 : 2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  return c;
-}
-
-export function maakVignet(W, H) {
-  const c = document.createElement("canvas");
-  c.width = W; c.height = H;
-  const ctx = c.getContext("2d");
+// Achtergrondlaag (vignet + sterren): één keer per resize op een eigen canvas
+// achter het spel, in plaats van elk frame schermvullend over te tekenen.
+export function tekenHemel(canvas, W, H, dpr, n = 90) {
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.32,
                                      W / 2, H / 2, Math.hypot(W, H) * 0.62);
   g.addColorStop(0, "rgba(13,12,34,0.30)");
   g.addColorStop(1, "rgba(13,12,34,0.85)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
-  return c;
+  ctx.fillStyle = "#fff";
+  for (let i = 0; i < n; i++) {
+    const x = Math.random() * W, y = Math.random() * H;
+    const rand = Math.min(x, W - x) / W + Math.min(y, H - y) / H;
+    if (Math.random() < rand * 2.2) continue;  // het midden is voor het kind
+    ctx.globalAlpha = 0.25 + Math.random() * 0.4;
+    ctx.beginPath();
+    ctx.arc(x, y, Math.random() < 0.75 ? 1 : 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }

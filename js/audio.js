@@ -72,10 +72,13 @@ const LIEDJES = [
    0, 1, 2, 4, 4, 5, 4, 2, 0, 1, 2, 2, 1, 1, 0],
 ];
 
+const GELUID_OPSLAG = "sterrenlijnen-geluid";
+
 export class Geluid {
   constructor() {
     this.ctx = null;
     this.aan = true;
+    try { this.aan = localStorage.getItem(GELUID_OPSLAG) !== "uit"; } catch { /* privémodus */ }
     this._lied = null;    // huidige melodie (graden)
     this._noot = 0;       // positie in de melodie
     this._stapel = [];    // geschudde stapel liedjes die nog moeten
@@ -87,8 +90,14 @@ export class Geluid {
     if (this.ctx) return;
     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 1.0;
-    this.master.connect(this.ctx.destination);
+    this.master.gain.value = this.aan ? 1.0 : 0.0;
+    // begrenzer: tada + arpeggio + nootje tegelijk mag niet kraken
+    const rem = this.ctx.createDynamicsCompressor();
+    rem.threshold.value = -10;
+    rem.ratio.value = 12;
+    rem.attack.value = 0.003;
+    rem.release.value = 0.2;
+    this.master.connect(rem).connect(this.ctx.destination);
     this.muziekBus = this.ctx.createGain();
     this.muziekBus.gain.value = 0.16;
     this.muziekBus.connect(this.master);
@@ -97,8 +106,20 @@ export class Geluid {
 
   zetAan(aan) {
     this.aan = aan;
+    try { localStorage.setItem(GELUID_OPSLAG, aan ? "aan" : "uit"); } catch { /* privémodus */ }
+    if (!aan && typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
     if (this.master) {
       this.master.gain.setTargetAtTime(aan ? 1.0 : 0.0, this.ctx.currentTime, 0.05);
+    }
+  }
+
+  pauzeer(ja) {  // tabblad uit beeld: geen muziek op de achtergrond
+    if (!this.ctx) return;
+    if (ja) {
+      this.ctx.suspend();
+      if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
+    } else {
+      this.ctx.resume();
     }
   }
 
@@ -201,7 +222,14 @@ export class Geluid {
     if (!this.aan || typeof speechSynthesis === "undefined") return;
     try {
       speechSynthesis.cancel();
+      // Kies zelf een Nederlandse stem: alleen `lang` zetten laat sommige
+      // browsers een Engelse stem Nederlands voorlezen — dan liever stil.
+      const stemmen = speechSynthesis.getVoices();
+      const nl = stemmen.find(v => v.lang.replace("_", "-") === "nl-NL")
+              ?? stemmen.find(v => /^nl\b/i.test(v.lang));
+      if (stemmen.length && !nl) return;
       const u = new SpeechSynthesisUtterance(tekst);
+      if (nl) u.voice = nl;
       u.lang = "nl-NL";
       u.rate = 0.8;
       u.pitch = 1.1;

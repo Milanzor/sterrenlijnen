@@ -1,0 +1,12 @@
+{
+  "name": "Sterrenlijnen",
+  "short_name": "Sterrenlijnen",
+  "description": "Trek figuren, letters en woorden na met je wijsvinger voor de camera.",
+  "lang": "nl",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#05070f",
+  "theme_color": "#05070f",
+  "icons": [{ "src": "assets/icoon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

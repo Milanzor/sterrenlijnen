@@ -304,8 +304,12 @@ function bouwLevels() {
 
 export const LEVELS = bouwLevels();
 
-export function resample(pts, spacing) {
+// Stipjes op vaste afstand langs het pad. `na` (optioneel) krijgt per stip de
+// index van het eerstvolgende padpunt: daarmee kan de lijn tot aan een stip
+// langs het échte pad getekend worden in plaats van hoekig van stip naar stip.
+export function resample(pts, spacing, na = null) {
   const out = [pts[0].slice()];
+  na?.push(1);
   let acc = 0;
   let [x0, y0] = pts[0];
   for (let i = 1; i < pts.length; i++) {
@@ -318,9 +322,15 @@ export function resample(pts, spacing) {
       seg = Math.hypot(x1 - x0, y1 - y0);
       acc = 0;
       out.push([x0, y0]);
+      na?.push(i);
     }
     acc += seg;
     x0 = x1; y0 = y1;
+  }
+  // het pad eindigt pas bij zijn laatste punt: een haal moet helemaal af
+  if (acc > spacing * 0.4) {
+    out.push([x0, y0]);
+    na?.push(pts.length);
   }
   return out;
 }
@@ -342,7 +352,10 @@ export function fitPaths(rawPaths, W, H, spacing, kader = null) {
   const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
   const naarX = x => (x - cx) * k + W / 2;
   const naarY = y => (y - cy) * k + H * 0.55;
-  return { paden: rawPaths.map(p => resample(
-             p.map(([x, y]) => [naarX(x), naarY(y)]), spacing)),
-           naarX, naarY, k };
+  // spacing mag een functie van de schaal zijn (letters: stipjes naar lettermaat)
+  const afstand = typeof spacing === "function" ? spacing(k) : spacing;
+  const lijnen = rawPaths.map(p => p.map(([x, y]) => [naarX(x), naarY(y)]));
+  const snedes = lijnen.map(() => []);
+  return { paden: lijnen.map((l, i) => resample(l, afstand, snedes[i])),
+           lijnen, snedes, naarX, naarY, k };
 }
